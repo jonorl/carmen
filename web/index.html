@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Where in the World?</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #0f1626; overflow: hidden; }
+    /* The game scales its 1280x720 layout down to fit whatever size this canvas is. */
+    canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+  </style>
+</head>
+<body>
+  <canvas id="glcanvas" tabindex="1"></canvas>
+  <script src="mq_js_bundle.js"></script>
+  <script>load("carmen.wasm");</script>
+</body>
+</html>

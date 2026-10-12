@@ -1,0 +1,5 @@
+# quad-snd (macroquad's audio) calls browser audio functions that
+# mq_js_bundle.js supplies at load time. Newer Rust no longer lets wasm
+# builds leave such symbols undefined, so allow it for this target.
+[target.wasm32-unknown-unknown]
+rustflags = ["-C", "link-arg=--allow-undefined"]

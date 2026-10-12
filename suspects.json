@@ -7,8 +7,9 @@
     "You can rename, add or remove traits. Each trait's clues are witness sentences; {value} becomes that person's value.",
     "In sentences use {They}/{they}, {Them}/{them}, {Their}/{their} and stick to verbs that work for he, she and they (simple past tense is safest: 'had', 'kept', 'ordered').",
     "bio and catchphrase are optional. The catchphrase is what they say when you catch them.",
+    "skin is optional too: light, rosy, olive, tan, brown or dark, for the photo in their dossier. The rest of the photo (hair, beard, glasses) comes from the words in their traits.",
     "witness_pronouns: true means witnesses say he/she/they and the crime computer has a Pronoun field (like the original game). If someone is the only 'they' or the only 'she', that gives them away, so set it to false and every witness says 'they'.",
-    "After editing, run: python3 carmen.py --check"
+    "After editing, run: cargo run -- --check"
   ],
 
   "witness_pronouns": true,
@@ -59,114 +60,70 @@
 
   "suspects": [
     {
-      "name": "Grandpa Joe",
+      "name": "Jon Orlo",
       "pronoun": "he",
-      "hair": "grey hair",
-      "hobby": "fishing",
-      "food": "chocolate cake",
-      "vehicle": "pickup truck",
-      "quirk": "telling dad jokes",
-      "bio": "Retired, restless and suspiciously good at disappearing during the washing-up.",
-      "catchphrase": "I was going to give it back, honest!"
-    },
-    {
-      "name": "Auntie Grace",
-      "pronoun": "she",
-      "hair": "curly black hair",
-      "hobby": "gardening",
-      "food": "spicy noodles",
-      "vehicle": "minivan",
-      "quirk": "humming old love songs",
-      "bio": "Runs the family group chat with an iron fist.",
-      "catchphrase": "You'll never prove I ate the last samosa."
-    },
-    {
-      "name": "Uncle Frank",
-      "pronoun": "he",
-      "hair": "a shaved head",
-      "hobby": "karaoke",
+      "hair": "bald",
+      "hobby": "videogames",
       "food": "pizza",
-      "vehicle": "motorbike",
-      "quirk": "taking selfies",
-      "bio": "Claims to know someone at every airport in the world.",
-      "catchphrase": "Can I at least get a selfie with the arresting officer?"
+      "vehicle": "road bicycle",
+      "quirk": "Pretending to know some japanese",
+      "bio": "Jon needs to get a job otherwise he'll resort to thieven and copying old videogames from the 90s.",
+      "catchphrase": "Omae wa mo, shindeiru!"
     },
     {
-      "name": "Cousin Tasha",
+      "name": "Rachel Kiernan",
       "pronoun": "she",
-      "hair": "red hair",
-      "hobby": "football",
-      "food": "mangoes",
-      "vehicle": "bicycle",
-      "quirk": "quoting movies",
-      "bio": "Has never once lost an argument, according to Cousin Tasha.",
-      "catchphrase": "This isn't over. It's just the end of act two."
+      "hair": "wavy brown hair",
+      "hobby": "travelling",
+      "food": "spicy pasta",
+      "vehicle": "cargo bicyle",
+      "quirk": "Being unoriginal at ordering food in a restaurant",
+      "bio": "Loves travelling solving humanitarian crises... and stealing national treasures!",
+      "catchphrase": "Are we going to a restaurant? If so, I'll order the same thing as you."
     },
     {
-      "name": "Cousin Leo",
-      "pronoun": "he",
-      "hair": "curly black hair",
-      "hobby": "chess",
-      "food": "pizza",
-      "vehicle": "convertible",
-      "quirk": "checking the weather app",
-      "bio": "Plans everything twelve moves ahead, except his escape routes.",
-      "catchphrase": "Checkmate... wait, no. Your move."
-    },
-    {
-      "name": "Big Sis Nina",
+      "name": "Isabela Orlo",
       "pronoun": "she",
-      "hair": "blonde hair",
-      "hobby": "karaoke",
-      "food": "fried chicken",
-      "vehicle": "convertible",
-      "quirk": "taking selfies",
-      "bio": "Has a playlist for every occasion, including getting arrested.",
-      "catchphrase": "Fine, but I'm posting about this."
+      "hair": "black hair",
+      "hobby": "building blocks",
+      "food": "granola",
+      "vehicle": "rollerskates",
+      "quirk": "Biligual English / Spanish",
+      "bio": "The eldest daughter in the Orlo clan, learning the thieving skills from her parents",
+      "catchphrase": "Look at what Lucas is doing!"
     },
     {
-      "name": "Little Bro Max",
+      "name": "Lucas Orlo",
       "pronoun": "he",
       "hair": "brown hair",
-      "hobby": "football",
-      "food": "fried chicken",
-      "vehicle": "bicycle",
-      "quirk": "telling dad jokes",
-      "bio": "Not a dad, still tells the jokes.",
-      "catchphrase": "Why did the thief take a shower? To make a clean getaway. ...No?"
+      "hobby": "eating",
+      "food": "pasta",
+      "vehicle": "scooter",
+      "quirk": "playing with magnet tiles",
+      "bio": "The youngest of the Orlo clan, got into thieven just to copycat his sister.",
+      "catchphrase": "Mamaaaaaa"
     },
     {
-      "name": "Best Mate Sam",
+      "name": "Uncle Erich",
       "pronoun": "he",
-      "hair": "red hair",
-      "hobby": "chess",
-      "food": "chocolate cake",
-      "vehicle": "minivan",
-      "quirk": "quoting movies",
-      "bio": "Basically family. Has a key to the house and a mug with his name on it.",
-      "catchphrase": "I want my phone call. And cake."
+      "hair": "bald hair, beard",
+      "hobby": "playmobile collecting",
+      "food": "pizza",
+      "vehicle": "convertible",
+      "quirk": "Can't be bothered to have a quirk",
+      "bio": "The mysterious uncle who resotrs to thieveing to sustain his hobby",
+      "catchphrase": "Es lo que hay."
     },
     {
-      "name": "Neighbour Priya",
+      "name": "Mutti Orlo",
       "pronoun": "she",
-      "hair": "brown hair",
-      "hobby": "gardening",
-      "food": "mangoes",
-      "vehicle": "motorbike",
-      "quirk": "checking the weather app",
-      "bio": "Knows everything that happens on the street before it happens.",
-      "catchphrase": "Should have checked the forecast: chance of handcuffs."
-    },
-    {
-      "name": "Godfather Ray",
-      "pronoun": "he",
-      "hair": "grey hair",
-      "hobby": "karaoke",
-      "food": "spicy noodles",
-      "vehicle": "pickup truck",
-      "quirk": "humming old love songs",
-      "bio": "Smooth talker, smoother dancer, terrible getaway driver.",
-      "catchphrase": "Let's talk about this over noodles."
+      "hair": "dark hair",
+      "hobby": "gambling",
+      "food": "ceviche",
+      "vehicle": "convertible",
+      "quirk": "playing with magnet tiles",
+      "bio": "The grandma of the Orlo clan, when she's not thieven, she's looking after the grandkids",
+      "catchphrase": "Where's the tabasco?."
     }
   ]
 }

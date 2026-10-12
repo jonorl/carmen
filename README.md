@@ -1,22 +1,27 @@
 # Where in the World?
 
-A terminal remake of the 1990s detective chase. The thieves are your family and friends.
+A remake of the 1990s detective chase, with a world map. The thieves are your family and friends.
 
 ## Run it
 
-Put the three files in one folder and run:
+You need Rust (https://rustup.rs). In this folder:
 
 ```
-python3 carmen.py
+cargo run
 ```
 
-On Windows, type `python` instead of `python3`. It needs Python 3.8 or newer and no extra packages.
+Options go after `--`, for example `cargo run -- --seed 42`:
 
-Options:
-
-- `--difficulty 1|2|3` skips the difficulty menu (Rookie, Detective, Super Sleuth).
+- `--difficulty 1|2|3` lets you press Enter on the title screen to start that difficulty (Rookie, Detective, Super Sleuth).
 - `--seed 42` replays the same case, which is handy for challenging someone to beat your time.
 - `--check` checks your edited data files and points at any mistakes.
+- `--data FOLDER` reads the JSON files from another folder.
+
+To give the game to someone, run `cargo build --release` and send them `target/release/carmen` (`carmen.exe` on Windows, built on Windows). The data files are built into it, so rebuild after editing them.
+
+To put it on a website, run `./build-web.sh` (the first time, also `rustup target add wasm32-unknown-unknown`) and upload the three files in `dist/` to any web host. They're plain static files, so nothing needs to run on the server.
+
+The menu bar along the top has Game (new case, how to play), Options (sound) and Dossiers, where you can read anyone's file at any time, even at headquarters. The four buttons under the text are the notebook (everything witnesses told you, plus help), the plane (flights), the magnifying glass (interview witnesses) and the crime computer (warrants and dossiers). Click or press a key to skip the typing. Scroll the notes with the mouse wheel.
 
 ## How a case works
 
@@ -34,12 +39,14 @@ Each new interview in a city costs more time (1, 2, then 3 hours), flights take 
 
 ## Putting your people in: `suspects.json`
 
-Replace the ten placeholder people. Each person needs:
+Replace the placeholder people. Each person needs:
 
 - `name`
 - `pronoun`: `he`, `she` or `they`
 - a value for every trait (`hair`, `hobby`, `food`, `vehicle`, `quirk`)
 - optionally a `bio` (shown in the dossiers) and a `catchphrase` (what they say when you catch them)
+- optionally a real photo for their dossier: run `tools/portrait.sh photo.jpg "Their Name"` (it needs ImageMagick) and rebuild. It's turned into a small pixel-art picture in `assets/suspects/`. If the face isn't in the middle, add the part to use as a third argument, like `300x436+82+24` (width x height + left + top, in the photo's pixels). The pictures are built into the game, so anyone you give it to, or who plays it on your website, sees them.
+- otherwise, optionally a `skin` tone for their drawn dossier picture: `light`, `rosy`, `olive`, `tan`, `brown` or `dark`. Without it, one is picked from their name. The rest of the photo comes from the words in their traits: "bald", "wavy brown hair", "beard" or "glasses" all show up.
 
 A few rules keep the game fair:
 
@@ -65,7 +72,7 @@ Inside jokes make the best traits: "Quirk: falling asleep during films", "Hobby:
 
 ## Countries and clues: `countries.json`
 
-There are 48 countries with about 300 clues, written to stay accurate. They avoid leaders, populations and records that change, and they include newer facts like Türkiye's 2022 name change, Croatia's switch to the euro and Astana's two name changes.
+There are 32 countries with about 215 clues, written to stay accurate. They avoid leaders, populations and records that change, and they include newer facts like Türkiye's 2022 name change.
 
 Each country has:
 
@@ -81,6 +88,12 @@ Clues also have to work against each other. Kenya, Uganda and Tanzania all use s
 
 ## Ideas for later
 
-- Graphics or sound: the game logic lives in the `Game` class, separate from the menus, so a GUI or web front end could reuse it.
+- More sound: flights, interviews, the arrest, music.
 - Two-player mode: same `--seed`, fastest time wins.
-- More witness places: add them to the `PLACES` list near the top of `carmen.py`.
+- More witness places: add them to the `PLACES` list near the top of `src/game.rs`.
+
+## Credits
+
+- Map: Natural Earth (public domain).
+- Fonts: Pixelify Sans, VT323 and Noto Sans, all under the SIL Open Font License (licences in `assets/fonts/`).
+- Sound: recordings you supplied (`assets/sounds/`).

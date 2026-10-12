@@ -1,0 +1,9 @@
+[package]
+name = "carmen"
+version = "0.1.0"
+edition = "2024"
+description = "Where in the World? A family-and-friends detective chase."
+
+[dependencies]
+macroquad = { version = "0.4.16", features = ["audio"] }
+serde_json = { version = "1", features = ["preserve_order"] }
