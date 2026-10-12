@@ -8,6 +8,7 @@
 mod computer;
 mod data;
 mod game;
+mod jail;
 mod landmarks;
 mod map;
 mod people;
@@ -28,6 +29,7 @@ use macroquad::experimental::coroutines::{Coroutine, start_coroutine};
 use macroquad::prelude::*;
 
 use data::{Data, LoadError};
+use jail::{Eyes, Jail};
 use game::{
     AGENCY, DIFFICULTIES, GAME_TITLE, Game, INTERVIEW_HOURS, Line, PLACES, Tone, WARRANT_HOURS, clock_text, flight_hours,
     hour_of_day,
@@ -187,6 +189,10 @@ enum Panel {
     /// The suspect running for it and the police after them, before the
     /// arrest is told (`then`).
     Chase { started: f64, then: Vec<Line> },
+    /// With the right warrant: the suspect marched off by an officer...
+    March { started: f64, then: Vec<Line> },
+    /// ...and locked up, while the end of the case prints beside the jail.
+    Jailed { started: f64 },
     /// A witness talking: their portrait, and what they said in a bubble.
     /// `notes` are the other lines the interview produced (the time, a night's sleep).
     Interview { place: usize, said: String, notes: Vec<Line> },
@@ -357,8 +363,11 @@ enum Action {
     Investigate(usize),
     /// ...and talk to the witness there.
     Arrive(usize),
-    /// The chase is over: tell how the arrest went.
+    /// The chase is over: march the suspect off, or tell how it went wrong.
     EndChase,
+    /// The march is over: the suspect is behind bars and the printer tells
+    /// how the case ended.
+    Jail,
     Fly(usize),
     /// Start computing a warrant: the lights flash with the sound...
     Compute,
@@ -389,6 +398,7 @@ struct App {
     portraits: Vec<Texture2D>,
     /// Each suspect's dossier photo.
     mugshots: Vec<Texture2D>,
+    jail: Jail,
     /// Which menu in the menu bar is open.
     menu: Option<usize>,
     /// The suspect whose dossier is open on top of the screen.
@@ -420,6 +430,7 @@ async fn run(data: Rc<Data>, args: Args) {
         place_art: places::pictures(),
         portraits: people::portraits(),
         mugshots: people::suspect_portraits(&data.suspects),
+        jail: Jail::new(),
         menu: None,
         dossier: None,
         loading_sounds: Some(start_coroutine(Sounds::load())),
@@ -501,7 +512,7 @@ impl App {
                     case.show(Panel::Story(story));
                 }
                 case.sync_rows(&self.ui, inner(TEXT).w - 4.0);
-                let art = Art { places: &self.place_art, portraits: &self.portraits };
+                let art = Art { places: &self.place_art, portraits: &self.portraits, jail: &self.jail };
                 case_screen(&mut self.ui, &self.land, &mut self.scenes, art, case, &mut self.sounds)
             }
         };
@@ -545,12 +556,17 @@ impl App {
                 let arrival = game.log[briefed..].iter().skip_while(|l| l.text.is_empty()).cloned().collect();
                 self.screen = Screen::Case(Box::new(Case::new(game, Panel::Story(arrival))));
             }
-            Action::ToTitle => self.screen = Screen::Hq(Box::new(Hq::new(Some(&self.name)))),
+            Action::ToTitle => {
+                if let Some(s) = &mut self.sounds {
+                    s.hush();
+                }
+                self.screen = Screen::Hq(Box::new(Hq::new(Some(&self.name))));
+            }
             Action::Quit => self.quit = true,
             Action::NewCase => match &mut self.screen {
                 // Starting again mid-case means giving this one up first.
                 Screen::Case(case) if !case.game.over => case.show(Panel::GiveUp),
-                Screen::Case(_) => self.screen = Screen::Hq(Box::new(Hq::new(Some(&self.name)))),
+                Screen::Case(_) => self.apply(Action::ToTitle),
                 Screen::Hq(_) => {}
             },
             Action::Help => match &mut self.screen {
@@ -576,8 +592,29 @@ impl App {
                 if let Screen::Case(case) = &mut self.screen
                     && let Panel::Chase { then, .. } = &mut case.panel
                 {
-                    let story = std::mem::take(then);
-                    case.show(Panel::Story(story));
+                    let then = std::mem::take(then);
+                    if case.game.won {
+                        if let Some(s) = &mut self.sounds {
+                            s.march();
+                        }
+                        case.show(Panel::March { started: get_time(), then });
+                    } else {
+                        case.show(Panel::Story(then));
+                    }
+                }
+            }
+            Action::Jail => {
+                if let Some(s) = &mut self.sounds {
+                    s.jail();
+                }
+                if let Screen::Case(case) = &mut self.screen
+                    && let Panel::March { then, .. } = &mut case.panel
+                {
+                    // The first line is the suspect being spotted, which the chase has just shown.
+                    let paras: Vec<String> = then.iter().skip(1).filter(|l| !l.text.is_empty()).map(printable).collect();
+                    case.printer = Printer::new();
+                    case.printer.print_paragraphs(&paras);
+                    case.show(Panel::Jailed { started: get_time() });
                 }
             }
             Action::CloseDossier => self.dossier = None,
@@ -873,7 +910,7 @@ fn case_screen(
     case.printer.update(get_frame_time(), sounds);
     let mut action = if matches!(case.panel, Panel::Depart | Panel::Flying) {
         draw_map(ui, land, case, picture)
-    } else if matches!(case.panel, Panel::Crime { .. }) {
+    } else if matches!(case.panel, Panel::Crime { .. } | Panel::Jailed { .. }) {
         case.printer.draw(ui, picture, None);
         None
     } else {
@@ -898,7 +935,7 @@ fn case_screen(
         Panel::Notes | Panel::Help | Panel::GiveUp => Some(Icon::Notes),
         Panel::Depart | Panel::Flying => Some(Icon::Depart),
         Panel::Crime { .. } => Some(Icon::Crime),
-        Panel::Story(_) | Panel::Chase { .. } => None,
+        Panel::Story(_) | Panel::Chase { .. } | Panel::March { .. } | Panel::Jailed { .. } => None,
     };
     for (i, icon) in BUTTONS.into_iter().enumerate() {
         let r = Rect::new(TEXT.x + i as f32 * (BUTTON_W + 6.0), BUTTON_Y, BUTTON_W, BUTTON_H);
@@ -1081,6 +1118,7 @@ fn label(ui: &Ui, p: Vec2, text: &str, colour: Color, r: Rect) {
 struct Art<'a> {
     places: &'a [Texture2D],
     portraits: &'a [Texture2D],
+    jail: &'a Jail,
 }
 
 fn text_panel(
@@ -1116,6 +1154,37 @@ fn text_panel(
             chase(ui, r, get_time() - started);
             let over = get_time() - started >= CHASE_SECONDS;
             (over || skip || ui.take_click(r)).then_some(Action::EndChase)
+        }
+        Panel::March { started, .. } => {
+            let t = get_time() - started;
+            march(r, t);
+            (t >= JAILED_AT || skip || ui.take_click(r)).then_some(Action::Jail)
+        }
+        Panel::Jailed { started } => {
+            let t = get_time() - started;
+            art.jail.draw(r, eyes_at(t), t >= GRIP_AT);
+            let (busy, waiting) = (case.printer.busy(), case.printer.waiting());
+            if busy || waiting {
+                if waiting {
+                    ui.text("Press a key or click for more.", r.x, r.y + r.h - 6.0, SMALL, GREY, false);
+                }
+                // The paper is in the picture frame, so a click anywhere carries on.
+                if skip || ui.take_click(Rect::new(0.0, MENU_H, W, H - MENU_H)) {
+                    if busy {
+                        case.printer.finish();
+                    } else {
+                        case.printer.resume();
+                    }
+                }
+                return None;
+            }
+            if ui.option(Rect::new(r.x, r.y + r.h - 20.0, 120.0, 20.0), "New case", "", true) {
+                return Some(Action::ToTitle);
+            }
+            if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 70.0, r.y + r.h - 20.0, 70.0, 20.0), "Quit", "", true) {
+                return Some(Action::Quit);
+            }
+            None
         }
         Panel::Interview { place, said, notes } => {
             let done = interview(ui, r, &portraits[*place], PLACES[*place].witness, said, notes, typed);
@@ -1195,6 +1264,54 @@ fn chase(ui: &Ui, r: Rect, t: f64) {
     }
     if let Some(x) = across(14.4, 17.0, sprites::POLICE_W) {
         sprites::police(x, ground, step, r);
+    }
+}
+
+/// The march to jail, timed from the original: the suspect and the officer
+/// cross the panel between these times, then after a moment of empty
+/// panel the jail appears at `JAILED_AT`.
+const MARCH: (f64, f64) = (0.2, 8.6);
+const JAILED_AT: f64 = 9.8;
+/// When the prisoner grabs the bars, as the jail music ends.
+const GRIP_AT: f64 = 14.3;
+
+/// The arrested suspect and the officer walking in from the right and off
+/// to the left along the bottom of the panel.
+fn march(r: Rect, t: f64) {
+    let (t0, t1) = MARCH;
+    if !(t0..t1).contains(&t) {
+        return;
+    }
+    let x = r.x + r.w - ((t - t0) / (t1 - t0)) as f32 * (r.w + sprites::MARCH_W);
+    sprites::march(x.round(), r.y + r.h - 4.0, (t / 0.25) as usize, r);
+}
+
+/// Where the prisoner looks `t` seconds after the door shuts: glancing about
+/// at the original's irregular moments, over and over.
+fn eyes_at(t: f64) -> Eyes {
+    const GLANCES: [(f64, Eyes); 9] = [
+        (0.0, Eyes::Ahead),
+        (1.5, Eyes::Left),
+        (3.8, Eyes::Right),
+        (4.4, Eyes::Ahead),
+        (6.1, Eyes::Left),
+        (8.4, Eyes::Ahead),
+        (9.5, Eyes::Right),
+        (10.7, Eyes::Ahead),
+        (13.0, Eyes::Left),
+    ];
+    let t = t.rem_euclid(14.6);
+    GLANCES.iter().rev().find(|(at, _)| t >= *at).map_or(Eyes::Ahead, |&(_, eyes)| eyes)
+}
+
+/// A line of the case as the printer puts it: the paper's font has straight
+/// quotes only, and the summary's columns go one under another because the
+/// paper is narrow.
+fn printable(line: &Line) -> String {
+    let text = line.text.replace(['\u{201c}', '\u{201d}'], "\"").replace("   ", "\n");
+    match &line.speaker {
+        Some(who) => format!("{who}: {text}"),
+        None => text,
     }
 }
 

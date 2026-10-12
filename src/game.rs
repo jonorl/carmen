@@ -768,7 +768,9 @@ impl Game {
             }
             Some(_) => {
                 self.won = true;
-                self.say(Tone::Plain, "You show your warrant and snap on the handcuffs.");
+                // As the original's printer put it, after the march off to jail.
+                let city = &self.country(self.here).city;
+                self.say(Tone::Plain, format!("Thanks to your help, the {city} police have locked up {}.", thief.name));
                 if let Some(catchphrase) = &thief.catchphrase {
                     self.speech(&thief.name, catchphrase);
                 }

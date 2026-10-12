@@ -17,6 +17,8 @@ const SPEED: f64 = 75.0;
 /// Queued between paragraphs: printing stops here until `resume`, since
 /// only about ten lines fit on the visible paper.
 const PAUSE: char = '\u{c}';
+/// Lines of paper showing above the printer.
+const SHOWN: usize = 11;
 
 pub struct Printer {
     /// Lines on the paper; the last is the one being printed.
@@ -62,6 +64,26 @@ impl Printer {
                     self.push(c);
                 }
             }
+        }
+    }
+
+    /// Queue paragraphs with a blank line between them, pausing wherever the
+    /// next one would push the first unread line off the top of the paper.
+    pub fn print_paragraphs(&mut self, paras: &[String]) {
+        let mut unread = 0;
+        for (n, para) in paras.iter().enumerate() {
+            let rows = rows(para);
+            if n > 0 {
+                if unread + 1 + rows > SHOWN {
+                    self.pause();
+                    unread = 0;
+                } else {
+                    unread += 1;
+                }
+                self.print("\n\n");
+            }
+            self.print(para);
+            unread += rows;
         }
     }
 
@@ -223,6 +245,13 @@ impl Printer {
     }
 }
 
+/// How many lines `text` takes up, printed from the start of a line.
+fn rows(text: &str) -> usize {
+    let mut p = Printer::new();
+    p.print(text);
+    1 + p.pending.iter().filter(|&&c| c == '\n').count()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -256,6 +285,21 @@ mod tests {
         p.finish();
         assert_eq!(p.lines, ["One", "Two"]);
         assert!(!p.busy() && !p.waiting());
+    }
+
+    #[test]
+    fn pauses_before_a_paragraph_that_would_push_unread_lines_off_the_paper() {
+        let para = |rows: usize| vec!["word"; rows].join("\n");
+        let mut p = Printer::new();
+        // Five lines, a blank, then five more fit; the third paragraph waits.
+        p.print_paragraphs(&[para(5), para(5), para(3)]);
+        p.finish();
+        assert!(p.waiting());
+        assert_eq!(p.lines.len(), 11);
+        p.resume();
+        p.finish();
+        assert!(!p.waiting() && !p.busy());
+        assert_eq!(p.lines.len(), 15);
     }
 
     #[test]

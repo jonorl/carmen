@@ -1,6 +1,7 @@
 //! Sound effects, all cut from recordings in assets/sounds/: a printer that
 //! loops while the printer is printing, a key press for typing, a clock
-//! tick for each hour that passes, and footsteps for walking to a witness.
+//! tick for each hour that passes, footsteps for walking to a witness, and
+//! the soundtracks of the chase and the arrest.
 
 use macroquad::audio::{PlaySoundParams, Sound, load_sound_from_bytes, play_sound, stop_sound};
 
@@ -16,6 +17,11 @@ const WALKING: &[u8] = include_bytes!("../assets/sounds/walking.wav");
 /// under "There goes the suspect!", police whistles and shouts, and the
 /// police running after them. 17.6 s.
 const CHASE: &[u8] = include_bytes!("../assets/sounds/chase.wav");
+/// Two of the officer's and the arrested suspect's footsteps, 2.03 s, cut
+/// to loop while they walk to jail.
+const MARCH: &[u8] = include_bytes!("../assets/sounds/march.wav");
+/// The music once the suspect is behind bars: 14.26 s.
+const JAIL: &[u8] = include_bytes!("../assets/sounds/jail.wav");
 /// The crime computer whirring over a warrant: 2.1 s.
 const COMPUTING: &[u8] = include_bytes!("../assets/sounds/computing.wav");
 /// How long the computing recording lasts; the lights flash for as long.
@@ -29,6 +35,8 @@ pub struct Sounds {
     tick: Sound,
     walking: Sound,
     chase: Sound,
+    march: Sound,
+    jail: Sound,
     computing: Sound,
     /// Whether the printing loop is playing.
     looping: bool,
@@ -48,6 +56,8 @@ impl Sounds {
             tick: load(TICK).await?,
             walking: load(WALKING).await?,
             chase: load(CHASE).await?,
+            march: load(MARCH).await?,
+            jail: load(JAIL).await?,
             computing: load(COMPUTING).await?,
             looping: false,
             on: true,
@@ -100,6 +110,26 @@ impl Sounds {
 
     pub fn stop_chase(&mut self) {
         stop_sound(&self.chase);
+    }
+
+    /// Leaving a case: cut off whatever scene was playing.
+    pub fn hush(&mut self) {
+        for sound in [&self.walking, &self.chase, &self.march, &self.jail, &self.computing] {
+            stop_sound(sound);
+        }
+    }
+
+    /// Footsteps, over and over until `jail`.
+    pub fn march(&mut self) {
+        if self.on {
+            play_sound(&self.march, PlaySoundParams { looped: true, volume: 0.7 });
+        }
+    }
+
+    /// The footsteps stop and the music starts.
+    pub fn jail(&mut self) {
+        stop_sound(&self.march);
+        self.once(&self.jail, 0.7);
     }
 }
 
@@ -169,7 +199,7 @@ mod tests {
 
     #[test]
     fn reads_the_printer_recordings() {
-        for (name, bytes) in [("printer.wav", PRINTING), ("key.wav", KEY), ("tick.wav", TICK), ("walking.wav", WALKING), ("chase.wav", CHASE), ("computing.wav", COMPUTING)] {
+        for (name, bytes) in [("printer.wav", PRINTING), ("key.wav", KEY), ("tick.wav", TICK), ("walking.wav", WALKING), ("chase.wav", CHASE), ("march.wav", MARCH), ("jail.wav", JAIL), ("computing.wav", COMPUTING)] {
             let samples = read_wav(bytes).unwrap_or_else(|| panic!("{name} is 16-bit PCM"));
             assert!(samples.iter().any(|s| s.abs() > 0.1), "{name} isn't silent");
         }

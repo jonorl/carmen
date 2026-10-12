@@ -1,4 +1,5 @@
-//! Little running characters for the chase before an arrest, drawn as pixel
+//! Little characters for the chase before an arrest and the march to jail
+//! after it, drawn as pixel
 //! grids: each letter is a colour and '.' is see-through. They're drawn at
 //! triple size, like the original's chunky sprites, and clipped to a panel
 //! so they run in from behind its frame.
@@ -24,6 +25,7 @@ fn colour(c: char) -> Option<Color> {
         'Y' => hex(0xfadc3c), // badge
         't' => hex(0xaaaab4), // truncheon
         'm' => hex(0x962828), // mouth
+        'W' => hex(0xffffff), // eye
         _ => return None,
     })
 }
@@ -117,8 +119,86 @@ const COP_LEGS: [[&str; 5]; 2] = [
     ],
 ];
 
+// The suspect again, arrested: hands up, walking left.
+const SURRENDER: [&str; 19] = [
+    "..kk..........kk....",
+    ".kSSk........kSSk...",
+    ".kSSk..kkkkk.kSSk...",
+    "..kCk.kHHHHHkkCk....",
+    "..kCk.kHHHHHkkCk....",
+    "..kCkkhhhhhhhkCk....",
+    "..kCkHHHHHHHHHHk....",
+    "..kkHHHHHHHHHHkk....",
+    "...kkSSSSkCCkCk.....",
+    "...kSkWSSkCCCCk.....",
+    "....kSSSSkCCCk......",
+    "....kCkkkCCCCk......",
+    "....kCCCcCCCCk......",
+    "....kCCCcCCCCk......",
+    "....khhhhhhhhk......",
+    "....kCCCcCCCCCk.....",
+    "...kCCCCcCCCCCk.....",
+    "...kCCCCCcCCCCk.....",
+    "...kkkkkkkkkkkk.....",
+];
+const SURRENDER_LEGS: [[&str; 5]; 2] = [
+    [
+        "....kCCk..kCCk......",
+        "...kCCk....kCCk.....",
+        "..kCCk......kCCk....",
+        ".kGGGk.....kGGGk....",
+        ".kkkk......kkkk.....",
+    ],
+    [
+        "......kCCkCCk.......",
+        "......kCCkCCk.......",
+        "......kCCkCCk.......",
+        ".....kGGGkGGGk......",
+        ".....kkkkkkkk.......",
+    ],
+];
+
+// An officer walking left behind them with a pistol at their back.
+const ESCORT: [&str; 16] = [
+    "......kkkkk.....",
+    ".....kBBBBBk....",
+    "....kBBBYBBBk...",
+    "....kBBBBBBBk...",
+    "...kkkkkkkkkkk..",
+    ".....kSSSSkYk...",
+    "...kSSSSkSSYk...",
+    "..kSSSSSSSSk....",
+    "...kkSSmmSSk....",
+    ".....kSmmSk.....",
+    "....kbkkkkbk....",
+    "kttttkSSBBBBBk..",
+    "..kttkkBBBBBBk..",
+    "....kBBBBYBBBk..",
+    "....kBBBBBBBBk..",
+    "....kbbbbbbbbk..",
+];
+const ESCORT_LEGS: [[&str; 5]; 2] = [
+    [
+        "....kBBk..kBBk..",
+        "...kBBk....kBBk.",
+        "..kBBk......kBBk",
+        ".kGGGk.....kGGGk",
+        ".kkkk......kkkk.",
+    ],
+    [
+        "......kBBkBBk...",
+        "......kBBkBBk...",
+        "......kBBkBBk...",
+        ".....kGGGkGGGk..",
+        ".....kkkkkkkk...",
+    ],
+];
+
 pub const SUSPECT_W: f32 = 20.0 * SCALE;
 pub const POLICE_W: f32 = 38.0 * SCALE;
+/// The officer's pistol reaches the suspect's back from here.
+const ESCORT_DX: f32 = 16.0;
+pub const MARCH_W: f32 = (ESCORT_DX + 16.0) * SCALE;
 
 /// The suspect running right, feet on `ground`; `step` alternates the legs.
 pub fn suspect(x: f32, ground: f32, step: usize, clip: Rect) {
@@ -136,4 +216,15 @@ pub fn police(x: f32, ground: f32, step: usize, clip: Rect) {
         draw(&COP, cx, top, clip);
         draw(&COP_LEGS[(step + phase) % 2], cx, top + COP.len() as f32 * SCALE, clip);
     }
+}
+
+/// The arrested suspect walking left with their hands up, and an officer
+/// behind them, in step.
+pub fn march(x: f32, ground: f32, step: usize, clip: Rect) {
+    let top = ground - (SURRENDER.len() + SURRENDER_LEGS[0].len()) as f32 * SCALE;
+    draw(&SURRENDER, x, top, clip);
+    draw(&SURRENDER_LEGS[step % 2], x, top + SURRENDER.len() as f32 * SCALE, clip);
+    let (cx, top) = (x + ESCORT_DX * SCALE, ground - (ESCORT.len() + ESCORT_LEGS[0].len()) as f32 * SCALE);
+    draw(&ESCORT, cx, top, clip);
+    draw(&ESCORT_LEGS[step % 2], cx, top + ESCORT.len() as f32 * SCALE, clip);
 }
