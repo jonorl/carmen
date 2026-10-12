@@ -1,0 +1,417 @@
+{
+  "_how_to_edit": [
+    "Each country needs: country, city (where you land), lat and lon of that city, treasures, and clues.",
+    "Clue types: flag, currency, language, landmark, geography, culture. Each witness prefers some types (the bank teller likes currency, the check-in agent likes flags).",
+    "Clues describe what the thief did or asked about, and should point to this country without naming it or the arrival city.",
+    "Use {They}/{they}, {Them}/{them}, {Their}/{their} for the thief, with verbs that work for he, she and they.",
+    "Give each country at least 3 clues (5 or more is better), and avoid facts that go stale, such as leaders or populations.",
+    "After editing, run: python3 carmen.py --check"
+  ],
+
+  "countries": [
+    {
+      "country": "Kenya",
+      "city": "Nairobi",
+      "lat": -1.29, "lon": 36.82,
+      "about": "Nairobi began as a railway depot and grew into East Africa's busiest business hub. It is one of the few capitals with a national park, lions included, right on its edge.",
+      "treasures": ["the finishing tape from a world-record marathon", "a beaded Maasai collar the size of a cartwheel"],
+      "clues": {
+        "flag": ["{They} asked about a black, red and green flag with a warrior's shield and two crossed spears."],
+        "currency": ["{They} asked how to pay with M-Pesa, the mobile-money service that started there in 2007."],
+        "landmark": [
+          "{They} wanted to watch the wildebeest cross the Mara River in the Maasai Mara.",
+          "{They} wanted to hand-feed a Rothschild's giraffe at a giraffe centre on the edge of the capital."
+        ],
+        "geography": ["{They} asked how to reach Lake Turkana, the world's largest permanent desert lake."],
+        "culture": [
+          "{They} wanted to watch long-distance runners train at altitude in Iten, the 'Home of Champions'.",
+          "{They} ordered a platter of nyama choma with ugali."
+        ]
+      }
+    },
+    {
+      "country": "Uganda",
+      "city": "Kampala",
+      "lat": 0.35, "lon": 32.58,
+      "about": "Kampala grew up across seven hills near the northern shore of Lake Victoria. The country sits on the equator and shelters about half of the world's mountain gorillas.",
+      "treasures": ["the world's longest rolex (a chapati egg roll)", "a royal bark-cloth robe"],
+      "clues": {
+        "flag": ["{They} asked about a flag with six black, yellow and red stripes and a crested crane in a white circle."],
+        "language": ["{They} practised the greeting 'Oli otya?' from the central region."],
+        "landmark": [
+          "{They} wanted to see where the White Nile flows out of Lake Victoria at Jinja.",
+          "{They} asked for a permit to trek to the mountain gorillas of Bwindi Impenetrable Forest."
+        ],
+        "geography": ["{They} wanted to climb the Rwenzori, the snowy 'Mountains of the Moon'."],
+        "culture": [
+          "{They} ordered a rolex: an omelette rolled up in a chapati.",
+          "{They} hopped on a boda boda motorbike taxi to tour a city of seven hills."
+        ]
+      }
+    },
+    {
+      "country": "Egypt",
+      "city": "Cairo",
+      "lat": 30.04, "lon": 31.24,
+      "about": "Cairo, one of Africa's largest cities, straddles the Nile just south of its delta. The pyramids of Giza stand on its western edge.",
+      "treasures": ["a golden scarab from a pharaoh's tomb", "the Sphinx's missing nose"],
+      "clues": {
+        "flag": ["{They} asked about a red, white and black flag with a golden eagle in the middle."],
+        "currency": ["{They} changed money into pounds and piastres."],
+        "landmark": [
+          "{They} wanted to ride a camel out to the Great Pyramid.",
+          "{They} wanted to see Tutankhamun's golden mask."
+        ],
+        "geography": [
+          "{They} planned a felucca sail on the Nile.",
+          "{They} asked about the ships passing through the Suez Canal."
+        ],
+        "culture": ["{They} ordered a big bowl of koshari."]
+      }
+    },
+    {
+      "country": "South Africa",
+      "city": "Cape Town",
+      "lat": -33.92, "lon": 18.42,
+      "about": "Cape Town sits beneath flat-topped Table Mountain near the south-western tip of Africa. Penguins, vineyards and two oceans are all within an easy drive.",
+      "treasures": ["the tablecloth off Table Mountain", "a jar of the Cape's finest rooibos"],
+      "clues": {
+        "flag": ["{They} asked about a six-coloured flag with a sideways green Y."],
+        "currency": ["{They} changed money into rand."],
+        "language": ["{They} asked why the country has twelve official languages, including sign language."],
+        "landmark": [
+          "{They} wanted to ride the cable car up Table Mountain.",
+          "{They} asked about the ferry to Robben Island."
+        ],
+        "geography": ["{They} wanted to see the penguins at Boulders Beach."],
+        "culture": ["{They} invited everyone to a braai."]
+      }
+    },
+    {
+      "country": "Tanzania",
+      "city": "Dar es Salaam",
+      "lat": -6.79, "lon": 39.21,
+      "about": "Dar es Salaam is the country's largest city and its main port on the Indian Ocean. Inland lie the Serengeti and Africa's highest mountain.",
+      "treasures": ["a violet gemstone the size of a coconut", "the summit sign from Africa's highest peak"],
+      "clues": {
+        "flag": ["{They} asked about a flag with a diagonal black band edged in yellow, between green and blue."],
+        "landmark": [
+          "{They} wanted to climb Kilimanjaro.",
+          "{They} wanted to see the great migration on the Serengeti plains.",
+          "{They} asked about a safari in the Ngorongoro Crater."
+        ],
+        "geography": ["{They} asked about ferries to Zanzibar, the Spice Islands."],
+        "culture": ["{They} wanted to buy a violet-blue gemstone found in only one place on Earth."]
+      }
+    },
+    {
+      "country": "United Kingdom",
+      "city": "London",
+      "lat": 51.51, "lon": -0.13,
+      "about": "London stands on the River Thames and has been a capital for nearly a thousand years. Red buses, black cabs and the Tube keep it moving.",
+      "treasures": ["Big Ben's minute hand", "the Crown Jewels' spare teaspoon"],
+      "clues": {
+        "flag": ["{They} asked about a red, white and blue flag made from three crosses."],
+        "currency": ["{They} changed money into pounds sterling."],
+        "landmark": [
+          "{They} wanted to hear Big Ben chime.",
+          "{They} asked when the Changing of the Guard happens at Buckingham Palace."
+        ],
+        "geography": ["{They} wanted to walk across Tower Bridge."],
+        "culture": [
+          "{They} ordered fish and chips with mushy peas.",
+          "{They} asked how to get tickets for Wimbledon."
+        ]
+      }
+    },
+    {
+      "country": "France",
+      "city": "Paris",
+      "lat": 48.86, "lon": 2.35,
+      "about": "Paris, the 'City of Light', straddles the Seine and is one of the most visited cities on Earth.",
+      "treasures": ["the Eiffel Tower's top light bulb", "the Mona Lisa's eyebrows"],
+      "clues": {
+        "flag": ["{They} asked about a flag with vertical blue, white and red stripes."],
+        "landmark": [
+          "{They} wanted to climb the Eiffel Tower.",
+          "{They} wanted to see Notre-Dame cathedral, reopened after the 2019 fire.",
+          "{They} wanted to see the Mona Lisa at the Louvre."
+        ],
+        "geography": ["{They} wanted to visit Mont Saint-Michel at high tide."],
+        "culture": ["{They} bought a baguette and a wheel of Camembert."]
+      }
+    },
+    {
+      "country": "Italy",
+      "city": "Rome",
+      "lat": 41.9, "lon": 12.5,
+      "about": "Rome, the 'Eternal City', is packed with nearly 3,000 years of history. Vatican City, the world's smallest country, sits entirely inside it.",
+      "treasures": ["a coin from the bottom of the Trevi Fountain", "the original recipe for carbonara"],
+      "clues": {
+        "flag": ["{They} asked about a plain flag of vertical green, white and red stripes."],
+        "landmark": [
+          "{They} wanted to throw a coin into the Trevi Fountain.",
+          "{They} asked about tours of the Colosseum."
+        ],
+        "geography": [
+          "{They} wanted to climb Mount Vesuvius and explore the ruins of Pompeii.",
+          "{They} asked about the boot-shaped peninsula."
+        ],
+        "culture": [
+          "{They} insisted that real carbonara has no cream.",
+          "{They} wanted a gondola ride in Venice."
+        ]
+      }
+    },
+    {
+      "country": "Spain",
+      "city": "Madrid",
+      "lat": 40.42, "lon": -3.7,
+      "about": "Madrid, in the middle of the Iberian Peninsula, is known for late dinners, grand art museums and its Royal Palace.",
+      "treasures": ["the world's biggest paella pan", "a pair of golden flamenco shoes"],
+      "clues": {
+        "flag": ["{They} asked about a red and yellow striped flag with a coat of arms off to one side."],
+        "language": ["{They} practised Castilian and a few words of Catalan."],
+        "landmark": [
+          "{They} wanted to see Gaudí's Sagrada Família.",
+          "{They} asked about the Alhambra palace in Granada."
+        ],
+        "culture": [
+          "{They} wanted to throw tomatoes at La Tomatina.",
+          "{They} learned to cook paella and dance flamenco."
+        ]
+      }
+    },
+    {
+      "country": "Greece",
+      "city": "Athens",
+      "lat": 37.98, "lon": 23.73,
+      "about": "Athens is one of the oldest cities in the world, watched over by the Acropolis. Democracy, theatre and the Olympic Games all trace their roots to this country.",
+      "treasures": ["a marble column from the Parthenon", "the very first Olympic olive wreath"],
+      "clues": {
+        "flag": ["{They} asked about a flag with nine blue and white stripes and a white cross."],
+        "language": ["{They} practised an alphabet that starts with alpha, beta, gamma."],
+        "landmark": ["{They} wanted to climb up to the Parthenon on the Acropolis."],
+        "geography": ["{They} asked about ferries to Santorini and Mykonos."],
+        "culture": [
+          "{They} wanted to see where the ancient Olympic Games began.",
+          "{They} ordered souvlaki and moussaka."
+        ]
+      }
+    },
+    {
+      "country": "Türkiye",
+      "city": "Istanbul",
+      "lat": 41.01, "lon": 28.98,
+      "about": "Istanbul famously spans two continents, split by the Bosphorus strait between Europe and Asia.",
+      "treasures": ["a flying carpet from the Grand Bazaar", "the sultan's own box of lokum"],
+      "clues": {
+        "flag": ["{They} asked about a red flag with a white crescent and star."],
+        "currency": ["{They} changed money into lira."],
+        "language": ["{They} asked why the country's official English name changed spelling in 2022."],
+        "landmark": [
+          "{They} wanted to see Hagia Sophia.",
+          "{They} booked a hot-air balloon ride over the fairy chimneys of Cappadocia."
+        ],
+        "geography": ["{They} wanted to take a ferry from Europe to Asia across the Bosphorus."],
+        "culture": [
+          "{They} haggled for rugs in the Grand Bazaar.",
+          "{They} bought a box of lokum."
+        ]
+      }
+    },
+    {
+      "country": "Norway",
+      "city": "Oslo",
+      "lat": 59.91, "lon": 10.75,
+      "about": "Oslo sits at the head of a long fjord, ringed by forest. It hosts the Nobel Peace Prize ceremony every December.",
+      "treasures": ["the Nobel Peace Prize's polishing cloth", "a Viking helmet (no horns, sorry)"],
+      "clues": {
+        "flag": ["{They} asked about a red flag with a blue cross outlined in white."],
+        "landmark": [
+          "{They} wanted to cruise the Geirangerfjord.",
+          "{They} asked where Edvard Munch's 'The Scream' is displayed."
+        ],
+        "geography": ["{They} wanted to see the midnight sun on the Lofoten Islands."],
+        "culture": ["{They} asked about brunost, the sweet brown cheese."]
+      }
+    },
+    {
+      "country": "Netherlands",
+      "city": "Amsterdam",
+      "lat": 52.37, "lon": 4.9,
+      "about": "Amsterdam is a city of canals and narrow gabled houses, where bicycles far outnumber cars.",
+      "treasures": ["the world's first tulip bulb", "the sails off a 300-year-old windmill"],
+      "clues": {
+        "flag": ["{They} asked about a plain flag of horizontal red, white and blue stripes."],
+        "language": ["{They} practised saying 'gezellig'."],
+        "landmark": [
+          "{They} wanted to visit Anne Frank's house.",
+          "{They} wanted to see the windmills of Kinderdijk."
+        ],
+        "geography": ["{They} asked how about a quarter of the country can lie below sea level."],
+        "culture": ["{They} cycled past the tulip fields in spring."]
+      }
+    },
+    {
+      "country": "Germany",
+      "city": "Berlin",
+      "lat": 52.52, "lon": 13.4,
+      "about": "Berlin was divided by a wall from 1961 to 1989. Today it is known for its museums, nightlife and history on every corner.",
+      "treasures": ["the horses from the top of the Brandenburg Gate", "a slab of the old Wall"],
+      "clues": {
+        "flag": ["{They} asked about a flag with black, red and gold horizontal stripes."],
+        "landmark": [
+          "{They} wanted to walk through the Brandenburg Gate.",
+          "{They} wanted to see the longest surviving stretch of the Wall, now covered in murals."
+        ],
+        "geography": ["{They} wanted to visit the fairytale castle of Neuschwanstein in Bavaria."],
+        "culture": [
+          "{They} asked when Oktoberfest starts in Munich.",
+          "{They} ordered a currywurst."
+        ]
+      }
+    },
+    {
+      "country": "Japan",
+      "city": "Tokyo",
+      "lat": 35.68, "lon": 139.69,
+      "about": "Tokyo is one of the biggest metropolitan areas on Earth, mixing neon-lit streets with quiet shrines and gardens.",
+      "treasures": ["the golden chopsticks of the first sushi master", "a bullet train's spare nose"],
+      "clues": {
+        "flag": ["{They} asked about a white flag with a single red circle."],
+        "currency": ["{They} changed money into yen."],
+        "language": ["{They} practised writing hiragana and katakana."],
+        "landmark": [
+          "{They} wanted to photograph Mount Fuji.",
+          "{They} wanted to cross the famous scramble crossing at Shibuya."
+        ],
+        "culture": [
+          "{They} rode a shinkansen bullet train.",
+          "{They} asked when the cherry blossoms come out."
+        ]
+      }
+    },
+    {
+      "country": "Nepal",
+      "city": "Kathmandu",
+      "lat": 27.72, "lon": 85.32,
+      "about": "Kathmandu sits in a high valley crowded with temples, stupas and prayer flags, with the Himalaya on the horizon.",
+      "treasures": ["a snowball from the top of Everest", "a yak-wool scarf a mile long"],
+      "clues": {
+        "flag": ["{They} asked about the only national flag that isn't a rectangle."],
+        "landmark": [
+          "{They} wanted to trek to Everest Base Camp.",
+          "{They} wanted to visit Lumbini, the birthplace of the Buddha."
+        ],
+        "geography": ["{They} asked about a country with eight of the world's ten highest mountains."],
+        "culture": ["{They} ordered a plate of momos."]
+      }
+    },
+    {
+      "country": "United States",
+      "city": "New York",
+      "lat": 40.71, "lon": -74.01,
+      "about": "New York City's five boroughs hold more than eight million people. Times Square, Central Park and Broadway are all on Manhattan.",
+      "treasures": ["the Statue of Liberty's torch", "the first hot dog ever sold at Coney Island"],
+      "clues": {
+        "flag": ["{They} asked about a flag with 50 stars and 13 stripes."],
+        "landmark": [
+          "{They} took a ferry to the Statue of Liberty.",
+          "{They} wanted to hike down into the Grand Canyon."
+        ],
+        "geography": ["{They} asked about Yellowstone, the world's first national park."],
+        "culture": ["{They} asked how to get tickets to the Super Bowl."]
+      }
+    },
+    {
+      "country": "Mexico",
+      "city": "Mexico City",
+      "lat": 19.43, "lon": -99.13,
+      "about": "Mexico City was built on the ruins of the Aztec capital, Tenochtitlan, high in a mountain valley.",
+      "treasures": ["the Aztec Sun Stone", "the world's biggest piñata"],
+      "clues": {
+        "flag": ["{They} asked about a green, white and red flag with an eagle eating a snake on a cactus."],
+        "landmark": [
+          "{They} wanted to climb the Pyramid of the Sun at Teotihuacan.",
+          "{They} asked about the Mayan city of Chichén Itzá."
+        ],
+        "geography": ["{They} wanted to swim in the cenotes of the Yucatán."],
+        "culture": [
+          "{They} wanted to see the marigold altars of the Day of the Dead.",
+          "{They} ordered tacos al pastor."
+        ]
+      }
+    },
+    {
+      "country": "Brazil",
+      "city": "Rio de Janeiro",
+      "lat": -22.91, "lon": -43.17,
+      "about": "Rio de Janeiro is squeezed between mountains and sea, famous for Copacabana beach and Sugarloaf Mountain.",
+      "treasures": ["a samba school's feathered crown", "the ball from a World Cup final"],
+      "clues": {
+        "flag": ["{They} asked about a green flag with a yellow diamond and a blue starry globe."],
+        "currency": ["{They} changed money into reais."],
+        "landmark": ["{They} wanted to visit the Christ the Redeemer statue."],
+        "geography": ["{They} asked about boat trips up the Amazon from Manaus."],
+        "culture": [
+          "{They} wanted to dance samba at Carnival.",
+          "{They} asked for a feijoada and a glass of fresh açaí."
+        ]
+      }
+    },
+    {
+      "country": "Argentina",
+      "city": "Buenos Aires",
+      "lat": -34.6, "lon": -58.38,
+      "about": "Buenos Aires is famous for its wide avenues, café culture and late-night tango halls.",
+      "treasures": ["the very first tango rose", "a silver mate gourd"],
+      "clues": {
+        "flag": ["{They} asked about a light blue and white flag with a golden sun."],
+        "landmark": ["{They} wanted to watch the Perito Moreno Glacier calve into the lake."],
+        "geography": ["{They} asked about Aconcagua, the highest mountain outside Asia."],
+        "culture": [
+          "{They} wanted to learn the tango.",
+          "{They} wanted an asado and a gourd of mate.",
+          "{They} talked about the team that won the 2022 men's World Cup."
+        ]
+      }
+    },
+    {
+      "country": "Peru",
+      "city": "Lima",
+      "lat": -12.05, "lon": -77.04,
+      "about": "Lima, on the Pacific coast, was once the capital of Spain's South American empire and is now one of the world's great food cities.",
+      "treasures": ["a golden Inca sun disc", "an alpaca's best sweater"],
+      "clues": {
+        "flag": ["{They} asked about a red-white-red flag with a vicuña on its shield."],
+        "currency": ["{They} changed money into soles."],
+        "landmark": [
+          "{They} wanted to hike the Inca Trail to Machu Picchu.",
+          "{They} asked about flights over the Nazca Lines."
+        ],
+        "geography": ["{They} wanted to visit the floating reed islands on Lake Titicaca."],
+        "culture": ["{They} ordered ceviche with a glass of chicha morada."]
+      }
+    },
+    {
+      "country": "Australia",
+      "city": "Sydney",
+      "lat": -33.87, "lon": 151.21,
+      "about": "Sydney is built around a spectacular harbour, crossed by its famous bridge and watched over by the sail-roofed Opera House.",
+      "treasures": ["a koala's secret eucalyptus stash", "the Opera House's spare sail"],
+      "clues": {
+        "flag": ["{They} asked about a blue flag with a Union Jack, a big seven-pointed star and the Southern Cross in white."],
+        "landmark": [
+          "{They} wanted to see Uluru glow red at sunset.",
+          "{They} wanted to see a show under the sail-shaped roofs of the Opera House."
+        ],
+        "geography": ["{They} wanted to snorkel on the Great Barrier Reef."],
+        "culture": [
+          "{They} asked where to cuddle a koala.",
+          "{They} wanted to learn to throw a boomerang."
+        ]
+      }
+    }
+  ]
+}

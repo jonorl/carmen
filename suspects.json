@@ -1,0 +1,172 @@
+{
+  "_how_to_edit": [
+    "Replace these placeholder people with your own family and friends.",
+    "Every suspect needs a name, a pronoun (he, she or they) and a value for every trait.",
+    "No two people may have the same pronoun AND identical traits, or the crime computer can't tell them apart.",
+    "Values work best as short phrases that several people share: two people with red hair, three who love karaoke, and so on.",
+    "You can rename, add or remove traits. Each trait's clues are witness sentences; {value} becomes that person's value.",
+    "In sentences use {They}/{they}, {Them}/{them}, {Their}/{their} and stick to verbs that work for he, she and they (simple past tense is safest: 'had', 'kept', 'ordered').",
+    "bio and catchphrase are optional. The catchphrase is what they say when you catch them.",
+    "witness_pronouns: true means witnesses say he/she/they and the crime computer has a Pronoun field (like the original game). If someone is the only 'they' or the only 'she', that gives them away, so set it to false and every witness says 'they'.",
+    "After editing, run: python3 carmen.py --check"
+  ],
+
+  "witness_pronouns": true,
+
+  "traits": [
+    {
+      "key": "hair",
+      "label": "Hair",
+      "clues": [
+        "{They} had {value}.",
+        "You couldn't miss {them}: {they} had {value}."
+      ]
+    },
+    {
+      "key": "hobby",
+      "label": "Hobby",
+      "clues": [
+        "{They} wouldn't stop talking about {value}.",
+        "{They} asked if there was anywhere nearby for {value}.",
+        "{They} said {they} never missed a weekend of {value}."
+      ]
+    },
+    {
+      "key": "food",
+      "label": "Favourite food",
+      "clues": [
+        "{They} ordered a mountain of {value}.",
+        "{They} asked where to get the best {value} in town."
+      ]
+    },
+    {
+      "key": "vehicle",
+      "label": "Vehicle",
+      "clues": [
+        "{They} showed me a photo of {their} {value}.",
+        "{They} complained about missing {their} {value} back home."
+      ]
+    },
+    {
+      "key": "quirk",
+      "label": "Quirk",
+      "clues": [
+        "{They} couldn't stop {value}.",
+        "{They} kept {value} the whole time."
+      ]
+    }
+  ],
+
+  "suspects": [
+    {
+      "name": "Grandpa Joe",
+      "pronoun": "he",
+      "hair": "grey hair",
+      "hobby": "fishing",
+      "food": "chocolate cake",
+      "vehicle": "pickup truck",
+      "quirk": "telling dad jokes",
+      "bio": "Retired, restless and suspiciously good at disappearing during the washing-up.",
+      "catchphrase": "I was going to give it back, honest!"
+    },
+    {
+      "name": "Auntie Grace",
+      "pronoun": "she",
+      "hair": "curly black hair",
+      "hobby": "gardening",
+      "food": "spicy noodles",
+      "vehicle": "minivan",
+      "quirk": "humming old love songs",
+      "bio": "Runs the family group chat with an iron fist.",
+      "catchphrase": "You'll never prove I ate the last samosa."
+    },
+    {
+      "name": "Uncle Frank",
+      "pronoun": "he",
+      "hair": "a shaved head",
+      "hobby": "karaoke",
+      "food": "pizza",
+      "vehicle": "motorbike",
+      "quirk": "taking selfies",
+      "bio": "Claims to know someone at every airport in the world.",
+      "catchphrase": "Can I at least get a selfie with the arresting officer?"
+    },
+    {
+      "name": "Cousin Tasha",
+      "pronoun": "she",
+      "hair": "red hair",
+      "hobby": "football",
+      "food": "mangoes",
+      "vehicle": "bicycle",
+      "quirk": "quoting movies",
+      "bio": "Has never once lost an argument, according to Cousin Tasha.",
+      "catchphrase": "This isn't over. It's just the end of act two."
+    },
+    {
+      "name": "Cousin Leo",
+      "pronoun": "he",
+      "hair": "curly black hair",
+      "hobby": "chess",
+      "food": "pizza",
+      "vehicle": "convertible",
+      "quirk": "checking the weather app",
+      "bio": "Plans everything twelve moves ahead, except his escape routes.",
+      "catchphrase": "Checkmate... wait, no. Your move."
+    },
+    {
+      "name": "Big Sis Nina",
+      "pronoun": "she",
+      "hair": "blonde hair",
+      "hobby": "karaoke",
+      "food": "fried chicken",
+      "vehicle": "convertible",
+      "quirk": "taking selfies",
+      "bio": "Has a playlist for every occasion, including getting arrested.",
+      "catchphrase": "Fine, but I'm posting about this."
+    },
+    {
+      "name": "Little Bro Max",
+      "pronoun": "he",
+      "hair": "brown hair",
+      "hobby": "football",
+      "food": "fried chicken",
+      "vehicle": "bicycle",
+      "quirk": "telling dad jokes",
+      "bio": "Not a dad, still tells the jokes.",
+      "catchphrase": "Why did the thief take a shower? To make a clean getaway. ...No?"
+    },
+    {
+      "name": "Best Mate Sam",
+      "pronoun": "he",
+      "hair": "red hair",
+      "hobby": "chess",
+      "food": "chocolate cake",
+      "vehicle": "minivan",
+      "quirk": "quoting movies",
+      "bio": "Basically family. Has a key to the house and a mug with his name on it.",
+      "catchphrase": "I want my phone call. And cake."
+    },
+    {
+      "name": "Neighbour Priya",
+      "pronoun": "she",
+      "hair": "brown hair",
+      "hobby": "gardening",
+      "food": "mangoes",
+      "vehicle": "motorbike",
+      "quirk": "checking the weather app",
+      "bio": "Knows everything that happens on the street before it happens.",
+      "catchphrase": "Should have checked the forecast: chance of handcuffs."
+    },
+    {
+      "name": "Godfather Ray",
+      "pronoun": "he",
+      "hair": "grey hair",
+      "hobby": "karaoke",
+      "food": "spicy noodles",
+      "vehicle": "pickup truck",
+      "quirk": "humming old love songs",
+      "bio": "Smooth talker, smoother dancer, terrible getaway driver.",
+      "catchphrase": "Let's talk about this over noodles."
+    }
+  ]
+}
