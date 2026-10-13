@@ -5,11 +5,17 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::data::{Country, Data, SEXES};
+use crate::data::{Country, Data, SEXES, sex_shown};
+use crate::lang::{Lang, lang, tr};
 use crate::rng::Rng;
 
-pub const GAME_TITLE: &str = "WHERE IN THE WORLD?";
-pub const AGENCY: &str = "Family Bureau of Investigation";
+pub fn game_title() -> &'static str {
+    tr("WHERE IN THE WORLD?", "¿DÓNDE EN EL MUNDO?")
+}
+
+pub fn agency() -> &'static str {
+    tr("Family Bureau of Investigation", "Agencia Familiar de Investigaciones")
+}
 
 pub const START_HOUR: i64 = 9; // every case starts Monday 09:00
 const BEDTIME: i64 = 23; // detectives sleep from 23:00 to 07:00
@@ -23,7 +29,9 @@ const AIRPORT_HOURS: i64 = 1; // check-in, taxis and so on, added to each flight
 /// A detective's rank, as in the original: it sets how hard their cases are,
 /// and they reach it after `arrests` arrests.
 pub struct Rank {
+    /// In English; `label` gives it in the language in use.
     pub name: &'static str,
+    pub name_es: &'static str,
     pub arrests: u32,
     /// Flights from the crime scene to the hideout.
     pub legs: usize,
@@ -34,13 +42,19 @@ pub struct Rank {
 }
 
 pub const RANKS: [Rank; 6] = [
-    Rank { name: "Rookie", arrests: 0, legs: 4, spare_detours: 2, buffer: 12 },
-    Rank { name: "Sleuth", arrests: 1, legs: 4, spare_detours: 2, buffer: 6 },
-    Rank { name: "Private Eye", arrests: 3, legs: 5, spare_detours: 1, buffer: 6 },
-    Rank { name: "Investigator", arrests: 6, legs: 5, spare_detours: 1, buffer: 2 },
-    Rank { name: "Ace Detective", arrests: 10, legs: 6, spare_detours: 1, buffer: 2 },
-    Rank { name: "Super Sleuth", arrests: 15, legs: 6, spare_detours: 0, buffer: 2 },
+    Rank { name: "Rookie", name_es: "Aprendiz", arrests: 0, legs: 4, spare_detours: 2, buffer: 12 },
+    Rank { name: "Sleuth", name_es: "Sabueso", arrests: 1, legs: 4, spare_detours: 2, buffer: 6 },
+    Rank { name: "Private Eye", name_es: "Detective privado", arrests: 3, legs: 5, spare_detours: 1, buffer: 6 },
+    Rank { name: "Investigator", name_es: "Investigador", arrests: 6, legs: 5, spare_detours: 1, buffer: 2 },
+    Rank { name: "Ace Detective", name_es: "Detective estrella", arrests: 10, legs: 6, spare_detours: 1, buffer: 2 },
+    Rank { name: "Super Sleuth", name_es: "Supersabueso", arrests: 15, legs: 6, spare_detours: 0, buffer: 2 },
 ];
+
+impl Rank {
+    pub fn label(&self) -> &'static str {
+        tr(self.name, self.name_es)
+    }
+}
 
 /// The rank (an index into `RANKS`) of a detective with `arrests` arrests.
 pub fn rank_for(arrests: u32) -> usize {
@@ -52,44 +66,90 @@ pub fn rank_for(arrests: u32) -> usize {
 pub fn promotion_news(arrests: u32) -> String {
     let rank = rank_for(arrests);
     let promoted = rank > rank_for(arrests.saturating_sub(1));
-    let next = RANKS.get(rank + 1).map(|r| (r.name, r.arrests - arrests));
-    let plural = |n: u32| if n == 1 { "arrest" } else { "arrests" };
+    let next = RANKS.get(rank + 1).map(|r| (r.label(), r.arrests - arrests));
+    let now = RANKS[rank].label();
+    let plural = |n: u32| match (n == 1, lang()) {
+        (true, Lang::En) => "arrest",
+        (false, Lang::En) => "arrests",
+        (true, Lang::Es) => "arresto",
+        (false, Lang::Es) => "arrestos",
+    };
     match (promoted, next) {
-        (true, Some((name, n))) => {
-            format!("Congratulations! You have been promoted to {}. {n} more {} and you'll make {name}.", RANKS[rank].name, plural(n))
-        }
-        (true, None) => format!("Congratulations! You have been promoted to {}, the agency's highest rank.", RANKS[rank].name),
-        (false, Some((name, n))) => {
-            format!("{n} more {} and you'll be promoted to {name}.", plural(n))
-        }
-        (false, None) => format!("That makes {arrests} arrests for the agency's top {}.", RANKS[rank].name),
+        (true, Some((name, n))) => tr(
+            format!("Congratulations! You have been promoted to {now}. {n} more {} and you'll make {name}.", plural(n)),
+            format!("¡Felicitaciones! Te ascendieron a {now}. Con {n} {} más llegás a {name}.", plural(n)),
+        ),
+        (true, None) => tr(
+            format!("Congratulations! You have been promoted to {now}, the agency's highest rank."),
+            format!("¡Felicitaciones! Te ascendieron a {now}, el rango más alto de la agencia."),
+        ),
+        (false, Some((name, n))) => tr(
+            format!("{n} more {} and you'll be promoted to {name}.", plural(n)),
+            format!("Con {n} {} más te ascienden a {name}.", plural(n)),
+        ),
+        (false, None) => tr(
+            format!("That makes {arrests} arrests for the agency's top {now}."),
+            format!("Ya son {arrests} arrestos para {now}, lo más alto de la agencia."),
+        ),
     }
 }
 
 pub struct Place {
+    /// In English, which also picks its picture and the witness's portrait.
     pub name: &'static str,
     pub witness: &'static str,
+    /// In Spanish: the name, the name with its article ("la biblioteca") and
+    /// the witness, who is a man or a woman as their portrait is.
+    es: (&'static str, &'static str, &'static str),
     /// Clue types this witness tends to mention.
     prefers: &'static [&'static str],
 }
 
-const fn place(name: &'static str, witness: &'static str, prefers: &'static [&'static str]) -> Place {
-    Place { name, witness, prefers }
+impl Place {
+    pub fn label(&self) -> &'static str {
+        tr(self.name, self.es.0)
+    }
+
+    pub fn witness_label(&self) -> &'static str {
+        tr(self.witness, self.es.2)
+    }
+
+    /// "the Bank", "el banco": for "at the..." and "en...".
+    fn the(&self) -> String {
+        tr(format!("the {}", self.name), self.es.1.to_string())
+    }
+}
+
+const fn place(
+    name: &'static str,
+    witness: &'static str,
+    es: (&'static str, &'static str, &'static str),
+    prefers: &'static [&'static str],
+) -> Place {
+    Place { name, witness, es, prefers }
 }
 
 pub static PLACES: [Place; 9] = [
-    place("Bank", "Bank teller", &["currency"]),
-    place("Airport", "Check-in agent", &["flag", "geography"]),
-    place("Library", "Librarian", &["language", "landmark"]),
-    place("Museum", "Museum guide", &["landmark", "culture"]),
-    place("Market", "Market trader", &["culture", "currency"]),
-    place("Hotel", "Hotel concierge", &[]),
-    place("Bus station", "Ticket seller", &["geography", "landmark"]),
-    place("Café", "Barista", &["culture", "language"]),
-    place("Taxi rank", "Taxi driver", &["landmark", "geography"]),
+    place("Bank", "Bank teller", ("Banco", "el banco", "Cajero"), &["currency"]),
+    place("Airport", "Check-in agent", ("Aeropuerto", "el aeropuerto", "Empleada de check-in"), &["flag", "geography"]),
+    place("Library", "Librarian", ("Biblioteca", "la biblioteca", "Bibliotecaria"), &["language", "landmark"]),
+    place("Museum", "Museum guide", ("Museo", "el museo", "Guía del museo"), &["landmark", "culture"]),
+    place("Market", "Market trader", ("Mercado", "el mercado", "Puestero"), &["culture", "currency"]),
+    place("Hotel", "Hotel concierge", ("Hotel", "el hotel", "Conserje"), &[]),
+    place("Bus station", "Ticket seller", ("Terminal de micros", "la terminal de micros", "Boletera"), &["geography", "landmark"]),
+    place("Café", "Barista", ("Café", "el café", "Barista"), &["culture", "language"]),
+    place("Taxi rank", "Taxi driver", ("Parada de taxis", "la parada de taxis", "Taxista"), &["landmark", "geography"]),
 ];
 
 // What witnesses say when the thief never came through their city.
+const NOBODY_ES: [&str; 6] = [
+    "Perdón, no vi a nadie así por acá.",
+    "No. Hoy no pasó nadie así.",
+    "Me acordaría de una cara así. No la vi.",
+    "Nunca vi a nadie con esa descripción, disculpá.",
+    "Día tranquilo. Nada fuera de lo común.",
+    "No te puedo ayudar, detective. Nadie así.",
+];
 const NOBODY: [&str; 6] = [
     "Sorry, I haven't seen anyone like that around here.",
     "Nope. Nobody like that came through today.",
@@ -107,6 +167,19 @@ const WARNINGS: [&str; 4] = [
     "{They} said {they} planned to lie low in this city for a while. Hurry!",
 ];
 
+const WARNINGS_ES: [&str; 4] = [
+    "¡Cuidado, detective! Alguien así pasó corriendo por acá hace menos de una hora. ¡Tiene que seguir en la ciudad!",
+    "Me preguntó por buenos lugares para esconderse por acá. ¡Ojo!",
+    "{Lo} vi hace un momento, mirando por encima del hombro. ¡No puede estar lejos!",
+    "Dijo que pensaba quedarse escondid{o} en esta ciudad un tiempo. ¡Apurate!",
+];
+
+const SPOTTED_ES: [&str; 3] = [
+    "¡ves a {name} intentando escabullirse por la puerta de atrás!",
+    "¡ves a {name} escondid{o} detrás de un diario con dos agujeros para los ojos!",
+    "¡ves a {name} yéndose en puntas de pie con una bolsa sospechosamente pesada!",
+];
+
 const SPOTTED: [&str; 3] = [
     "you spot {name} trying to slip out of the back door!",
     "you spot {name} hiding behind a newspaper with two eye-holes cut in it!",
@@ -114,6 +187,7 @@ const SPOTTED: [&str; 3] = [
 ];
 
 const DAYS: [&str; 7] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const DAYS_ES: [&str; 7] = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 
 // ------------------------------------------------------------ text helpers
 
@@ -143,13 +217,15 @@ pub fn capitalise(text: &str) -> String {
     }
 }
 
-/// Swap {They}/{them}/{their}/{value} placeholders for real words.
+/// Swap {They}/{them}/{their}/{value} placeholders for real words, and in
+/// Spanish {Él}/{él}/{lo} and the ending {o} (o or a).
 pub fn fill(template: &str, pronoun: &str, value: Option<&str>) -> String {
     let (they, them, their) = match pronoun {
         "he" => ("he", "him", "his"),
         "she" => ("she", "her", "her"),
         _ => ("they", "them", "their"),
     };
+    let (el, lo, o) = if pronoun == "she" { ("ella", "la", "a") } else { ("él", "lo", "o") };
     let mut out = String::new();
     let mut rest = template;
     while let Some(open) = rest.find('{') {
@@ -166,6 +242,11 @@ pub fn fill(template: &str, pronoun: &str, value: Option<&str>) -> String {
             "Them" => Some(capitalise(them)),
             "Their" => Some(capitalise(their)),
             "value" => value.map(str::to_string),
+            "Él" => Some(capitalise(el)),
+            "él" => Some(el.to_string()),
+            "lo" => Some(lo.to_string()),
+            "Lo" => Some(capitalise(lo)),
+            "o" => Some(o.to_string()),
             _ => None,
         };
         match sub {
@@ -183,18 +264,33 @@ pub fn fill(template: &str, pronoun: &str, value: Option<&str>) -> String {
     capitalise(&out)
 }
 
-/// In the original's style: "Monday, 9 a.m.".
+/// In the original's style: "Monday, 9 a.m.", or "lunes, 9 de la mañana".
 pub fn clock_text(t: i64) -> String {
     let day = (START_HOUR + t).div_euclid(24);
-    let name = DAYS[day.rem_euclid(7) as usize];
-    let next = if day >= 7 { "next " } else { "" };
-    let time = match hour_of_day(t) {
-        0 => "midnight".to_string(),
-        12 => "noon".to_string(),
-        h if h < 12 => format!("{h} a.m."),
-        h => format!("{} p.m.", h - 12),
-    };
-    format!("{next}{name}, {time}")
+    let d = day.rem_euclid(7) as usize;
+    let next = day >= 7;
+    match lang() {
+        Lang::En => {
+            let time = match hour_of_day(t) {
+                0 => "midnight".to_string(),
+                12 => "noon".to_string(),
+                h if h < 12 => format!("{h} a.m."),
+                h => format!("{} p.m.", h - 12),
+            };
+            format!("{}{}, {time}", if next { "next " } else { "" }, DAYS[d])
+        }
+        Lang::Es => {
+            let time = match hour_of_day(t) {
+                0 => "medianoche".to_string(),
+                12 => "mediodía".to_string(),
+                h @ 1..6 => format!("{h} de la madrugada"),
+                h @ 6..12 => format!("{h} de la mañana"),
+                h @ 13..20 => format!("{} de la tarde", h - 12),
+                h => format!("{} de la noche", h - 12),
+            };
+            format!("{}{}, {time}", if next { "próximo " } else { "" }, DAYS_ES[d])
+        }
+    }
 }
 
 fn with_full_stop(mut text: String) -> String {
@@ -218,10 +314,10 @@ pub fn duration_text(hours: i64) -> String {
     let plural = |n: i64| if n == 1 { "" } else { "s" };
     let mut parts = Vec::new();
     if days > 0 {
-        parts.push(format!("{days} day{}", plural(days)));
+        parts.push(format!("{days} {}{}", tr("day", "día"), plural(days)));
     }
     if hrs > 0 || days == 0 {
-        parts.push(format!("{hrs} hour{}", plural(hrs)));
+        parts.push(format!("{hrs} {}{}", tr("hour", "hora"), plural(hrs)));
     }
     parts.join(", ")
 }
@@ -268,7 +364,8 @@ pub struct Game {
     route: Vec<usize>,
     on_route: HashMap<usize, usize>,
     pub start: usize,
-    pub treasure: String,
+    /// Which of the crime scene's treasures was taken.
+    treasure: usize,
     needed: Vec<String>,
     trait_plan: Vec<Vec<String>>,
     hideout: usize,
@@ -311,7 +408,7 @@ impl Game {
         let all: Vec<usize> = (0..data.countries.len()).collect();
         let route = rng.sample(&all, rank.legs + 1);
         let start = route[0];
-        let treasure = rng.choice(&data.countries[start].treasures).clone();
+        let treasure = rng.below(data.countries[start].treasures.len());
         let mut warrant: Vec<(String, Option<String>)> = data.traits.iter().filter(|t| t.computer).map(|t| (t.key.clone(), None)).collect();
         warrant.insert(0, ("sex".to_string(), None));
         let mut game = Game {
@@ -361,6 +458,21 @@ impl Game {
 
     pub fn country(&self, i: usize) -> &Country {
         &self.data.countries[i]
+    }
+
+    /// For words that agree with the thief, like Spanish "la sospechosa".
+    pub fn thief_is_female(&self) -> bool {
+        self.voice == "she"
+    }
+
+    /// What was stolen, in the language in use.
+    pub fn treasure(&self) -> String {
+        self.country(self.start).treasures[self.treasure].get().to_string()
+    }
+
+    /// What was stolen, in English: some treasures come with a joke.
+    fn treasure_en(&self) -> &str {
+        &self.country(self.start).treasures[self.treasure].en
     }
 
     fn say(&mut self, tone: Tone, text: impl Into<String>) {
@@ -480,14 +592,14 @@ impl Game {
     fn trait_sentence(&mut self, key: &str) -> String {
         let data = Rc::clone(&self.data);
         let t = data.traits.iter().find(|t| t.key == key).expect("trait key from the data");
-        let template = self.rng.choice(&t.clues);
-        fill(template, &self.voice, Some(t.phrase(data.suspects[self.thief].get(key))))
+        let template = self.rng.choice(t.clues());
+        fill(template, &self.voice, Some(data.suspects[self.thief].phrase(t)))
     }
 
     fn pick_clues(&mut self, country: usize, places: [usize; 3]) -> Vec<String> {
         let data = Rc::clone(&self.data);
         let mut pool: Vec<(&str, &str)> =
-            data.countries[country].clues.iter().flat_map(|(cat, texts)| texts.iter().map(move |t| (cat.as_str(), t.as_str()))).collect();
+            data.countries[country].clues.iter().flat_map(|(cat, texts)| texts.iter().map(move |t| (cat.as_str(), t.get()))).collect();
         self.rng.shuffle(&mut pool);
         let mut picked = Vec::new();
         let mut used: Vec<&str> = Vec::new();
@@ -513,11 +625,11 @@ impl Game {
         let places = self.places_in(c);
         let voice = self.voice.clone();
         let lines: Vec<Option<String>> = match self.on_route.get(&c).copied() {
-            None => self.rng.sample(&NOBODY, 3).into_iter().map(|s| Some(s.to_string())).collect(),
+            None => self.rng.sample(&tr(NOBODY, NOBODY_ES), 3).into_iter().map(|s| Some(s.to_string())).collect(),
             Some(idx) if idx == self.rank.legs => {
                 let mut traits = if self.needed.is_empty() { self.computer_keys() } else { self.needed.clone() };
                 self.rng.shuffle(&mut traits);
-                let warns = self.rng.sample(&WARNINGS, 3);
+                let warns = self.rng.sample(&tr(WARNINGS, WARNINGS_ES), 3);
                 let mut lines = Vec::new();
                 for (i, warn) in warns.iter().enumerate() {
                     if i == self.hideout {
@@ -569,7 +681,7 @@ impl Game {
             Some(i) if i < self.rank.legs => dests.push(self.route[i + 1]), // the right answer
             _ => {}
         }
-        dests.sort_by(|a, b| self.country(*a).city.cmp(&self.country(*b).city));
+        dests.sort_by(|a, b| self.country(*a).city().cmp(self.country(*b).city()));
         dests
     }
 
@@ -583,30 +695,46 @@ impl Game {
     pub fn briefing(&mut self) -> Vec<Line> {
         let start = self.log.len();
         let who = match self.voice.as_str() {
-            "he" => "a man",
-            "she" => "a woman",
-            _ => "someone",
+            "he" => tr("a man", "un hombre"),
+            "she" => tr("a woman", "una mujer"),
+            _ => tr("someone", "alguien"),
         };
-        self.say(Tone::Heading, format!("=== {} ===", AGENCY.to_uppercase()));
-        self.say(Tone::Warn, format!("FLASH! Stolen from {}: {}!", self.country(self.start).label(), self.treasure));
-        let saw = match self.treasure.as_str() {
-            "Messi's trophy room" => "After ruling out Cristiano Ronaldo as a suspect, witnesses saw",
-            _ => "Witnesses saw",
+        self.say(Tone::Heading, format!("=== {} ===", agency().to_uppercase()));
+        let (place, treasure) = (self.country(self.start).label(), self.treasure());
+        self.say(Tone::Warn, tr(format!("FLASH! Stolen from {place}: {treasure}!"), format!("¡URGENTE! Robo en {place}: ¡{treasure}!")));
+        let saw = match self.treasure_en() {
+            "Messi's trophy room" => tr(
+                "After ruling out Cristiano Ronaldo as a suspect, witnesses saw",
+                "Después de descartar a Cristiano Ronaldo como sospechoso, los testigos vieron a",
+            ),
+            _ => tr("Witnesses saw", "Los testigos vieron a"),
         };
-        self.say(Tone::Plain, format!("{saw} {who} fleeing the scene, and our files say it's someone in the family."));
         self.say(
             Tone::Plain,
-            format!(
-                "Your assignment, {}: follow the trail, get a warrant from the crime computer, \
-                 and make the arrest before {}",
-                self.detective,
-                // "Sunday, 9 a.m." already ends the sentence.
-                with_full_stop(clock_text(self.deadline))
+            tr(
+                format!("{saw} {who} fleeing the scene, and our files say it's someone in the family."),
+                format!("{saw} {who} huyendo del lugar, y según nuestros archivos es alguien de la familia."),
             ),
         );
-        let warning = match self.treasure.as_str() {
-            "the EVA01 from Nerv" => Some("Otherwise the Third Impact will be imminent."),
-            "Saggitarus golden cloth" => Some("Otherwise Saori Kido will be in trouble!"),
+        // "Sunday, 9 a.m." already ends the sentence.
+        let deadline = with_full_stop(clock_text(self.deadline));
+        let detective = &self.detective;
+        self.say(
+            Tone::Plain,
+            tr(
+                format!(
+                    "Your assignment, {detective}: follow the trail, get a warrant from the crime computer, \
+                     and make the arrest before {deadline}"
+                ),
+                format!(
+                    "Tu misión, {detective}: seguí el rastro, conseguí una orden de arresto en la computadora \
+                     y hacé el arresto antes del {deadline}"
+                ),
+            ),
+        );
+        let warning = match self.treasure_en() {
+            "the EVA01 from Nerv" => Some(tr("Otherwise the Third Impact will be imminent.", "Si no, el Tercer Impacto será inminente.")),
+            "Sagittarius gold cloth" => Some(tr("Otherwise Saori Kido will be in trouble!", "¡Si no, Saori Kido va a estar en problemas!")),
             _ => None,
         };
         if let Some(warning) = warning {
@@ -619,7 +747,7 @@ impl Game {
 
     fn arrive_text(&mut self) {
         let c = self.country(self.here);
-        let (label, about) = (c.label().to_uppercase(), c.about.clone());
+        let (label, about) = (c.label().to_uppercase(), c.about.as_ref().map(|a| a.get().to_string()));
         self.say(Tone::Plain, "");
         self.say(Tone::Heading, label);
         self.say(Tone::Dim, clock_text(self.t));
@@ -647,7 +775,13 @@ impl Game {
             if self.t > self.deadline {
                 self.time_up(true);
             } else {
-                self.say(Tone::Dim, "It's late. You check into a hotel and sleep until 7 a.m.");
+                self.say(
+                    Tone::Dim,
+                    tr(
+                        "It's late. You check into a hotel and sleep until 7 a.m.",
+                        "Es tarde. Te registrás en un hotel y dormís hasta las 7 de la mañana.",
+                    ),
+                );
             }
         }
     }
@@ -657,7 +791,8 @@ impl Game {
             return;
         }
         let hours = flight_hours(self.country(self.here), self.country(dest));
-        let line = format!("You fly from {} to {} ({hours} hours).", self.country(self.here).city, self.country(dest).city);
+        let (from, to) = (self.country(self.here).city(), self.country(dest).city());
+        let line = tr(format!("You fly from {from} to {to} ({hours} hours)."), format!("Volás de {from} a {to} ({hours} horas)."));
         self.say(Tone::Plain, "");
         self.say(Tone::Dim, line);
         if !self.spend(hours) {
@@ -685,8 +820,12 @@ impl Game {
         let lines = self.statements(c);
         self.say(Tone::Plain, "");
         if self.visited_here().contains(&i) {
-            self.say(Tone::Dim, format!("You've already been to the {}. From your notes:", place.name));
-            self.speech(place.witness, lines[i].as_deref().unwrap_or_default());
+            let at = place.the();
+            self.say(
+                Tone::Dim,
+                tr(format!("You've already been to {at}. From your notes:"), format!("Ya estuviste en {at}. De tus notas:")),
+            );
+            self.speech(place.witness_label(), lines[i].as_deref().unwrap_or_default());
             return;
         }
         if !self.spend(INTERVIEW_HOURS) {
@@ -694,7 +833,7 @@ impl Game {
         }
         self.visited.entry(c).or_default().push(i);
         let Some(statement) = &lines[i] else {
-            self.showdown(place.name);
+            self.showdown(&place.the());
             return;
         };
         // As in the original: before the first interview in each city on the
@@ -710,8 +849,9 @@ impl Game {
             }
             _ => {}
         }
-        self.say(Tone::Dim, format!("{} at the {}", clock_text(self.t), place.name));
-        self.speech(place.witness, statement);
+        let (when, at) = (clock_text(self.t), place.the());
+        self.say(Tone::Dim, tr(format!("{when} at {at}"), format!("{when}, en {at}")));
+        self.speech(place.witness_label(), statement);
         self.night();
     }
 
@@ -726,7 +866,7 @@ impl Game {
         }
         self.say(Tone::Plain, "");
         if self.warrant.iter().all(|(_, v)| v.is_none()) {
-            self.say(Tone::Plain, "Enter at least one detail first.");
+            self.say(Tone::Plain, tr("Enter at least one detail first.", "Primero ingresá al menos un dato."));
             return;
         }
         if !self.spend(WARRANT_HOURS) {
@@ -736,28 +876,41 @@ impl Game {
         let matches: Vec<usize> = (0..self.data.suspects.len()).filter(|&s| self.fits(s)).collect();
         if let [only] = matches[..] {
             self.warrant_for = Some(only);
-            self.say(Tone::Good, format!("Warrant issued for {}!", self.data.suspects[only].name));
+            let name = &self.data.suspects[only].name;
+            self.say(Tone::Good, tr(format!("Warrant issued for {name}!"), format!("¡Orden de arresto contra {name}!")));
         } else {
             self.warrant_for = None;
             if matches.is_empty() {
-                self.say(Tone::Warn, "Nobody on file matches that description. Check your details.");
+                self.say(
+                    Tone::Warn,
+                    tr(
+                        "Nobody on file matches that description. Check your details.",
+                        "Nadie en los archivos coincide con esa descripción. Revisá los datos.",
+                    ),
+                );
             } else {
                 let names: Vec<&str> = matches.iter().map(|&s| self.data.suspects[s].name.as_str()).collect();
-                self.say(Tone::Warn, format!("Possible suspects: {}", names.join(", ")));
-                self.say(Tone::Plain, "Add more details to narrow it down to one.");
+                let names = names.join(", ");
+                self.say(Tone::Warn, tr(format!("Possible suspects: {names}"), format!("Posibles sospechosos: {names}")));
+                self.say(Tone::Plain, tr("Add more details to narrow it down to one.", "Agregá más datos hasta que quede uno solo."));
             }
             if let Some(h) = had {
                 let name = self.data.suspects[h].name.clone();
-                self.say(Tone::Dim, format!("(Your warrant for {name} has been withdrawn.)"));
+                self.say(
+                    Tone::Dim,
+                    tr(format!("(Your warrant for {name} has been withdrawn.)"), format!("(Se anuló tu orden de arresto contra {name}.)")),
+                );
             }
         }
         self.night();
     }
 
-    /// The crime computer's fields: (key, label, every value someone on file has).
+    /// The crime computer's fields: (key, label, every value someone on file
+    /// has). Values are as in the English data; `shown` gives them in the
+    /// language in use.
     pub fn warrant_fields(&self) -> Vec<(String, String, Vec<String>)> {
         let sexes = SEXES.iter().map(|s| capitalise(s)).collect();
-        let mut fields = vec![("sex".to_string(), "Sex".to_string(), sexes)];
+        let mut fields = vec![("sex".to_string(), tr("Sex", "Sexo").to_string(), sexes)];
         for t in self.data.traits.iter().filter(|t| t.computer) {
             let mut values: Vec<String> = Vec::new();
             for s in &self.data.suspects {
@@ -766,10 +919,21 @@ impl Game {
                     values.push(v.to_string());
                 }
             }
-            values.sort_by_key(|v| v.to_lowercase());
-            fields.push((t.key.clone(), t.label.clone(), values));
+            values.sort_by_key(|v| t.shown(v).to_lowercase());
+            fields.push((t.key.clone(), t.label().to_string(), values));
         }
         fields
+    }
+
+    /// A crime computer value for field `key`, as the player reads it.
+    pub fn shown(&self, key: &str, value: &str) -> String {
+        if key == "sex" {
+            return sex_shown(value).to_string();
+        }
+        match self.data.traits.iter().find(|t| t.key == key) {
+            Some(t) => t.shown(value).to_string(),
+            None => value.to_string(),
+        }
     }
 
     pub fn give_up(&mut self) {
@@ -779,7 +943,10 @@ impl Game {
         self.over = true;
         let name = self.data.suspects[self.thief].name.clone();
         self.say(Tone::Plain, "");
-        self.say(Tone::Plain, format!("You hand in your badge for this one. The thief was {name}."));
+        self.say(
+            Tone::Plain,
+            tr(format!("You hand in your badge for this one. The thief was {name}."), format!("Abandonás el caso. Quien robó era {name}.")),
+        );
     }
 
     // ---- endings
@@ -787,11 +954,17 @@ impl Game {
     fn time_up(&mut self, asleep: bool) {
         self.over = true;
         self.t = self.t.max(self.deadline);
-        let when = if asleep { "While you slept, the" } else { "The" };
         let name = self.data.suspects[self.thief].name.clone();
+        let treasure = self.treasure();
         self.say(Tone::Plain, "");
-        self.say(Tone::Bad, format!("TIME'S UP! {when} deadline passed."));
-        self.say(Tone::Plain, format!("{name} got away with {}.", self.treasure));
+        let up = match (asleep, lang()) {
+            (true, Lang::En) => "TIME'S UP! While you slept, the deadline passed.",
+            (false, Lang::En) => "TIME'S UP! The deadline passed.",
+            (true, Lang::Es) => "¡SE ACABÓ EL TIEMPO! Mientras dormías, venció el plazo.",
+            (false, Lang::Es) => "¡SE ACABÓ EL TIEMPO! Venció el plazo.",
+        };
+        self.say(Tone::Bad, up);
+        self.say(Tone::Plain, tr(format!("{name} got away with {treasure}."), format!("{name} se escapó con {treasure}.")));
     }
 
     fn showdown(&mut self, place: &str) {
@@ -799,58 +972,78 @@ impl Game {
         self.showdown = true;
         let data = Rc::clone(&self.data);
         let thief = &data.suspects[self.thief];
-        let spotted = self.rng.choice(&SPOTTED).replace("{name}", &thief.name);
-        self.say(Tone::Bad, format!("!!! At the {place}, {spotted}"));
+        let spotted = fill(self.rng.choice(&tr(SPOTTED, SPOTTED_ES)), thief.pronoun(), None).replace("{name}", &thief.name);
+        // fill() capitalises the start, which here is mid-sentence.
+        let spotted = match lang() {
+            Lang::En => spotted.replacen("You", "you", 1),
+            Lang::Es => spotted.replacen("¡Ves", "¡ves", 1),
+        };
+        self.say(Tone::Bad, tr(format!("!!! At {place}, {spotted}"), format!("!!! En {place}, {spotted}")));
+        let name = &thief.name;
+        let here = tr(format!("{} here.", agency()), format!("Habla la {}.", agency()));
         match self.warrant_for {
             // As the original's printer put it, over the empty cell.
             None => {
-                self.say(Tone::Plain, format!("{AGENCY} here."));
-                let they = fill("{They}", thief.pronoun(), None);
-                self.say(
-                    Tone::Plain,
-                    format!(
-                        "You have trailed {} correctly, but you had no warrant. {they} gave you a cheeky wave and walked free.",
-                        thief.name
+                self.say(Tone::Plain, here);
+                let walked = tr(
+                    fill(
+                        "You have trailed {name} correctly, but you had no warrant. {They} gave you a cheeky wave and walked free.",
+                        thief.pronoun(),
+                        None,
+                    ),
+                    fill(
+                        "Seguiste bien el rastro de {name}, pero no tenías orden de arresto. {Él} te saludó con una sonrisa pícara y se fue tan tranquil{o}.",
+                        thief.pronoun(),
+                        None,
                     ),
                 );
-                self.say(Tone::Bad, "CASE LOST.");
+                self.say(Tone::Plain, walked.replace("{name}", name));
+                self.say(Tone::Bad, tr("CASE LOST.", "CASO PERDIDO."));
             }
             Some(w) if w != self.thief => {
-                self.say(Tone::Plain, format!("{AGENCY} here."));
+                self.say(Tone::Plain, here);
+                let wrong = &data.suspects[w].name;
                 self.say(
                     Tone::Plain,
-                    format!(
-                        "You have trailed {} correctly, but your warrant was for {}. {} laughed and strolled off.",
-                        thief.name, data.suspects[w].name, thief.name
+                    tr(
+                        format!("You have trailed {name} correctly, but your warrant was for {wrong}. {name} laughed and strolled off."),
+                        format!("Seguiste bien el rastro de {name}, pero tu orden de arresto era contra {wrong}. {name} se rio y se fue caminando."),
                     ),
                 );
-                self.say(Tone::Bad, "CASE LOST.");
+                self.say(Tone::Bad, tr("CASE LOST.", "CASO PERDIDO."));
             }
             Some(_) => {
                 self.won = true;
                 // As the original's printer put it, after the march off to jail.
-                let city = &self.country(self.here).city;
-                self.say(Tone::Plain, format!("Thanks to your help, the {city} police have locked up {}.", thief.name));
+                let city = self.country(self.here).city();
+                self.say(
+                    Tone::Plain,
+                    tr(
+                        format!("Thanks to your help, the {city} police have locked up {name}."),
+                        format!("Gracias a tu ayuda, la policía de {city} encerró a {name}."),
+                    ),
+                );
                 if let Some(catchphrase) = &thief.catchphrase {
                     self.speech(&thief.name, catchphrase);
                 }
-                self.say(Tone::Good, "CASE CLOSED!");
+                self.say(Tone::Good, tr("CASE CLOSED!", "¡CASO CERRADO!"));
+                let (treasure, home, detective) = (self.treasure(), self.country(self.start).city(), &self.detective);
                 self.say(
                     Tone::Plain,
-                    format!(
-                        "You recover {} and send it home to {}. Nice work, {}.",
-                        self.treasure,
-                        self.country(self.start).city,
-                        self.detective
+                    tr(
+                        format!("You recover {treasure} and send it home to {home}. Nice work, {detective}."),
+                        format!("Recuperás {treasure}, que vuelve a {home}. ¡Buen trabajo, {detective}!"),
                     ),
                 );
-                let aftermath = match self.treasure.as_str() {
-                    "the ball from the 7-1 defeat to Germany" => {
-                        Some("The Brazilian citizens, however, looked extremely sad to receive this treasure back.")
-                    }
-                    "one trillion bolivares" => {
-                        Some("However, the one trillion bolivares are now worthless due to inflation since last week.")
-                    }
+                let aftermath = match self.treasure_en() {
+                    "the ball from the 7-1 defeat to Germany" => Some(tr(
+                        "The Brazilian citizens, however, looked extremely sad to receive this treasure back.",
+                        "Sin embargo, los brasileños se veían tristísimos de recibir de vuelta este tesoro.",
+                    )),
+                    "one trillion bolivares" => Some(tr(
+                        "However, the one trillion bolivares are now worthless due to inflation since last week.",
+                        "Sin embargo, el billón de bolívares ya no vale nada por la inflación de la semana pasada.",
+                    )),
                     _ => None,
                 };
                 if let Some(aftermath) = aftermath {
@@ -858,9 +1051,13 @@ impl Game {
                 }
             }
         }
+        let (took, flights, wrong) = (duration_text(self.t), self.flights, self.wrong_turns);
         self.say(
             Tone::Dim,
-            format!("Time taken: {}   Flights: {}   Wrong turns: {}", duration_text(self.t), self.flights, self.wrong_turns),
+            tr(
+                format!("Time taken: {took}   Flights: {flights}   Wrong turns: {wrong}"),
+                format!("Tiempo: {took}   Vuelos: {flights}   Desvíos: {wrong}"),
+            ),
         );
     }
 }
@@ -1005,6 +1202,58 @@ mod tests {
     fn fills_pronouns_and_values() {
         assert_eq!(fill("{They} showed me {their} {value}.", "she", Some("bike")), "She showed me her bike.");
         assert_eq!(fill("{they} kept {them} {unknown}", "he", None), "He kept him {unknown}");
+    }
+
+    #[test]
+    fn spanish_fills_its_own_placeholders() {
+        assert_eq!(fill("Dijo que pensaba quedarse escondid{o}. {Lo} vi.", "she", None), "Dijo que pensaba quedarse escondida. La vi.");
+        assert_eq!(fill("{Él} tenía {value}.", "he", Some("barba")), "Él tenía barba.");
+    }
+
+    #[test]
+    fn the_clock_in_spanish() {
+        crate::lang::set(Lang::Es);
+        assert_eq!(clock_text(0), "lunes, 9 de la mañana");
+        assert_eq!(clock_text(3), "lunes, mediodía");
+        assert_eq!(clock_text(8), "lunes, 5 de la tarde");
+        assert_eq!(clock_text(12), "lunes, 9 de la noche");
+        assert_eq!(clock_text(15), "martes, medianoche");
+        assert_eq!(clock_text(18), "martes, 3 de la madrugada");
+        assert_eq!(clock_text(24 * 7), "próximo lunes, 9 de la mañana");
+        assert_eq!(duration_text(25), "1 día, 1 hora");
+        crate::lang::set(Lang::En);
+    }
+
+    /// Whole cases in Spanish, won and lost: every placeholder filled and no
+    /// English left in what the player reads.
+    #[test]
+    fn cases_read_fully_in_spanish() {
+        crate::lang::set(Lang::Es);
+        let data = data();
+        for seed in 0..60 {
+            let mut game = Game::new(Rc::clone(&data), RANKS[seed as usize % RANKS.len()], Rng::new(seed), "Test");
+            game.briefing();
+            if seed % 3 == 0 {
+                // No warrant: the thief walks free.
+                for leg in 0..game.rank.legs {
+                    game.travel(game.route[leg + 1]);
+                }
+                for i in 0..3 {
+                    game.investigate(i);
+                }
+            } else {
+                play_perfectly(&mut game);
+            }
+            // Catchphrases are quoted as each person says them, in any language.
+            let thief = &data.suspects[game.thief].name;
+            for line in game.log.iter().filter(|l| l.speaker.as_ref() != Some(thief)) {
+                assert!(!line.text.contains('{'), "seed {seed}: {}", line.text);
+                for english in [" the ", "They ", " you ", "Monday", " hours"] {
+                    assert!(!line.text.contains(english), "seed {seed}: {}", line.text);
+                }
+            }
+        }
+        crate::lang::set(Lang::En);
     }
 
     #[test]

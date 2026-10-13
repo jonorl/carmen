@@ -1,4 +1,6 @@
-//! Reading and checking countries.json and suspects.json.
+//! Reading and checking countries.json and suspects.json. Each entry has its
+//! English, and optionally an "es" section with the same in Spanish; `Text`
+//! and the accessors below pick whichever is in use (see `lang`).
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -6,11 +8,15 @@ use std::path::Path;
 use serde_json::Value;
 
 use crate::game::RANKS;
+use crate::lang::{Lang, lang};
 
 pub const CLUE_TYPES: [&str; 6] = ["flag", "currency", "language", "landmark", "geography", "culture"];
 /// A suspect's sex, as on the original's crime computer; witnesses say he or she.
 pub const SEXES: [&str; 2] = ["female", "male"];
 const PRONOUN_KEYS: [&str; 6] = ["They", "they", "Them", "them", "Their", "their"];
+/// Spanish sentences' placeholders: él or ella, lo or la, and o or a for
+/// words that agree with the thief (cansad{o}).
+const ES_PRONOUN_KEYS: [&str; 4] = ["Él", "él", "lo", "o"];
 const RESERVED_KEYS: [&str; 5] = ["bio", "catchphrase", "name", "sex", "skin"];
 /// Skin tones a suspect's dossier portrait can have.
 pub const SKIN_TONES: [&str; 6] = ["light", "rosy", "olive", "tan", "brown", "dark"];
@@ -19,39 +25,91 @@ pub const SKIN_TONES: [&str; 6] = ["light", "rosy", "olive", "tan", "brown", "da
 const EMBEDDED_COUNTRIES: &str = include_str!("../countries.json");
 const EMBEDDED_SUSPECTS: &str = include_str!("../suspects.json");
 
+/// Something said in English, and in Spanish if the data has it.
+#[derive(Clone, Debug, Default)]
+pub struct Text {
+    pub en: String,
+    pub es: Option<String>,
+}
+
+impl Text {
+    /// In the language in use, falling back to English.
+    pub fn get(&self) -> &str {
+        match (lang(), &self.es) {
+            (Lang::Es, Some(es)) => es,
+            _ => &self.en,
+        }
+    }
+}
+
 pub struct Country {
+    /// The country's English name, which also picks its postcard.
     pub country: String,
-    pub city: String,
+    pub name: Text,
+    pub city: Text,
     pub lat: f64,
     pub lon: f64,
-    pub about: Option<String>,
-    pub treasures: Vec<String>,
+    pub about: Option<Text>,
+    pub treasures: Vec<Text>,
     /// (clue type, sentences), in file order.
-    pub clues: Vec<(String, Vec<String>)>,
+    pub clues: Vec<(String, Vec<Text>)>,
 }
 
 impl Country {
+    pub fn city(&self) -> &str {
+        self.city.get()
+    }
+
     pub fn label(&self) -> String {
-        format!("{}, {}", self.city, self.country)
+        format!("{}, {}", self.city.get(), self.name.get())
     }
 }
 
 pub struct Trait {
     pub key: String,
-    pub label: String,
+    pub label: Text,
     pub clues: Vec<String>,
+    pub clues_es: Vec<String>,
     /// Whether the crime computer has it as a field. Traits it hasn't (like
     /// "Other") are only for witnesses to mention.
     pub computer: bool,
     /// How witnesses word some values, so the computer can say "Bald" while
-    /// a witness says "no hair at all". Keys are lower case.
+    /// a witness says "no hair at all". Keys are the English values in lower
+    /// case, in both languages.
     pub phrases: HashMap<String, String>,
+    pub phrases_es: HashMap<String, String>,
+    /// Each English value in Spanish, as the computer and dossiers show it.
+    pub values_es: HashMap<String, String>,
 }
 
 impl Trait {
+    pub fn label(&self) -> &str {
+        self.label.get()
+    }
+
+    /// Witness sentences in the language in use.
+    pub fn clues(&self) -> &[String] {
+        match lang() {
+            Lang::Es if !self.clues_es.is_empty() => &self.clues_es,
+            _ => &self.clues,
+        }
+    }
+
+    /// `value` (as in the English data) as the computer and dossiers show it.
+    pub fn shown<'a>(&'a self, value: &'a str) -> &'a str {
+        match lang() {
+            Lang::Es => self.values_es.get(&value.to_lowercase()).map_or(value, String::as_str),
+            Lang::En => value,
+        }
+    }
+
     /// `value` as witnesses say it.
     pub fn phrase<'a>(&'a self, value: &'a str) -> &'a str {
-        self.phrases.get(&value.to_lowercase()).map_or(value, String::as_str)
+        let phrases = match lang() {
+            Lang::Es => &self.phrases_es,
+            Lang::En => &self.phrases,
+        };
+        phrases.get(&value.to_lowercase()).map_or_else(|| self.shown(value), String::as_str)
     }
 }
 
@@ -60,7 +118,10 @@ pub struct Suspect {
     /// "female" or "male".
     pub sex: String,
     pub traits: HashMap<String, String>,
-    pub bio: Option<String>,
+    /// Their own Spanish for a trait (mostly Other, which is theirs alone),
+    /// over the trait's usual translation.
+    pub traits_es: HashMap<String, String>,
+    pub bio: Option<Text>,
     pub catchphrase: Option<String>,
     /// For the dossier portrait; picked from the name when not given.
     pub skin: Option<String>,
@@ -74,6 +135,33 @@ impl Suspect {
 
     pub fn pronoun(&self) -> &'static str {
         if self.sex == "female" { "she" } else { "he" }
+    }
+
+    /// Trait `t` as the computer and their dossier show it.
+    pub fn shown<'a>(&'a self, t: &'a Trait) -> &'a str {
+        match (lang(), self.traits_es.get(&t.key)) {
+            (Lang::Es, Some(own)) => own,
+            _ => t.shown(self.get(&t.key)),
+        }
+    }
+
+    /// Trait `t` as witnesses describe it.
+    pub fn phrase<'a>(&'a self, t: &'a Trait) -> &'a str {
+        let value = self.get(&t.key);
+        match (lang(), self.traits_es.get(&t.key)) {
+            (Lang::Es, Some(own)) if !t.phrases_es.contains_key(&value.to_lowercase()) => own,
+            _ => t.phrase(value),
+        }
+    }
+}
+
+/// A sex as the computer and dossiers show it.
+pub fn sex_shown(sex: &str) -> &'static str {
+    match (lang(), sex.trim().to_lowercase().as_str()) {
+        (Lang::En, "female") => "Female",
+        (Lang::En, _) => "Male",
+        (Lang::Es, "female") => "Mujer",
+        (Lang::Es, _) => "Hombre",
     }
 }
 
@@ -232,6 +320,7 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
         } else if total < 5 {
             warnings.push(format!("{place}: only {total} clues. Five or more keeps cases varied."));
         }
+        check_country_es(c, &place, &mut errors, &mut warnings);
     }
     let need = RANKS.iter().map(|d| d.legs).max().unwrap_or(0) + 6;
     if countries.len() < need {
@@ -284,6 +373,37 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
                 errors.push(format!("{place}: clue must contain {{value}}: {t}"));
             }
         }
+        match t.get("es") {
+            None => warnings.push(format!(r#"{place}: no "es" section, so it shows in English when playing in Spanish."#)),
+            Some(es) => {
+                let place = format!("{place}, es");
+                if text(es.get("label")).is_none() {
+                    errors.push(format!(r#"{place}: needs a "label"."#));
+                }
+                match text_list(es.get("clues")) {
+                    Some(list) if !list.is_empty() => {
+                        for t in list {
+                            if let Some(b) = placeholders(t).into_iter().find(|p| !ES_PRONOUN_KEYS.contains(p) && *p != "value") {
+                                errors.push(format!(
+                                    "{place}: unknown placeholder {{{b}}} in: {t} (Spanish uses {{Él}}, {{él}}, {{lo}} and {{o}})"
+                                ));
+                            }
+                            if !t.contains("{value}") {
+                                errors.push(format!("{place}: clue must contain {{value}}: {t}"));
+                            }
+                        }
+                    }
+                    _ => errors.push(format!(r#"{place}: needs a "clues" list of witness sentences."#)),
+                }
+                for key in ["phrases", "values"] {
+                    if let Some(map) = es.get(key)
+                        && !map.as_object().is_some_and(|m| m.values().all(|v| text(Some(v)).is_some()))
+                    {
+                        errors.push(format!(r#"{place}: "{key}" must map English values to Spanish words."#));
+                    }
+                }
+            }
+        }
     }
 
     // Only the crime computer's fields need to tell people apart.
@@ -334,6 +454,20 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
                 errors.push(format!(r#"{place}: missing "{k}"."#));
             }
         }
+        if let Some(es) = s.get("es") {
+            match es.as_object() {
+                Some(m) => {
+                    for (k, v) in m {
+                        if !keys.contains(&k.as_str()) && k != "bio" {
+                            errors.push(format!(r#"{place}: "es" has "{k}", which isn't a trait (or "bio")."#));
+                        } else if text(Some(v)).is_none() {
+                            errors.push(format!(r#"{place}: "es" "{k}" should be some text."#));
+                        }
+                    }
+                }
+                None => errors.push(format!(r#"{place}: "es" should be an object of Spanish trait values."#)),
+            }
+        }
         let mut profile: Vec<String> = searchable.iter().map(|k| value_of(s, k)).collect();
         profile.insert(0, sex);
         if let Some(other) = profiles.get(&profile) {
@@ -353,6 +487,20 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
             ));
         }
     }
+    // Every trait value needs Spanish: the trait's own for a value people
+    // share, or the suspect's.
+    for t in traits {
+        let (Some(k), Some(es)) = (text(t.get("key")), t.get("es")) else { continue };
+        let values = es.get("values").and_then(Value::as_object);
+        for s in suspects {
+            let v = value_of(s, k);
+            let own = s.get("es").and_then(|e| text(e.get(k))).is_some();
+            if !v.is_empty() && !own && !values.is_some_and(|m| m.keys().any(|x| x.trim().to_lowercase() == v)) {
+                let who = text(s.get("name")).unwrap_or("someone");
+                warnings.push(format!(r#"suspects.json: trait "{k}" has no Spanish for {who}'s "{v}"."#));
+            }
+        }
+    }
     for k in &searchable {
         let values: HashSet<String> = suspects.iter().filter(|s| s.is_object()).map(|s| value_of(s, k)).collect();
         if suspects.len() > 2 && values.len() == 1 {
@@ -362,42 +510,101 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
     (errors, warnings)
 }
 
+/// A country's "es" section must mirror its English: the same treasures and
+/// the same number of clues of each type, in the same order.
+fn check_country_es(c: &Value, place: &str, errors: &mut Vec<String>, warnings: &mut Vec<String>) {
+    let Some(es) = c.get("es") else {
+        warnings.push(format!(r#"{place}: no "es" section, so it shows in English when playing in Spanish."#));
+        return;
+    };
+    let place = format!("{place}, es");
+    let (name, city) = (text(es.get("country")), text(es.get("city")));
+    for (key, v) in [("country", name), ("city", city)] {
+        if v.is_none() {
+            errors.push(format!(r#"{place}: missing "{key}"."#));
+        }
+    }
+    let count = |v: Option<&Value>| v.and_then(Value::as_array).map(Vec::len);
+    if text_list(es.get("treasures")).is_none() || count(es.get("treasures")) != count(c.get("treasures")) {
+        errors.push(format!(r#"{place}: "treasures" should list the same treasures as the English, in Spanish."#));
+    }
+    let (Some(clues), Some(english)) = (es.get("clues").and_then(Value::as_object), c.get("clues").and_then(Value::as_object)) else {
+        errors.push(format!(r#"{place}: needs a "clues" section."#));
+        return;
+    };
+    for (cat, texts) in english {
+        if count(clues.get(cat)) != count(Some(texts)) {
+            errors.push(format!(r#"{place}: clues "{cat}" should have the same number of sentences as the English."#));
+        }
+    }
+    if let Some(extra) = clues.keys().find(|k| !english.contains_key(*k)) {
+        errors.push(format!(r#"{place}: clues "{extra}" isn't in the English."#));
+    }
+    for t in clues.values().filter_map(|v| text_list(Some(v))).flatten() {
+        if let Some(b) = placeholders(t).into_iter().find(|p| !ES_PRONOUN_KEYS.contains(p)) {
+            errors.push(format!("{place}: unknown placeholder {{{b}}} in: {t} (Spanish uses {{Él}}, {{él}}, {{lo}} and {{o}})"));
+        }
+        if [name, city].into_iter().flatten().any(|g| names_word(t, g)) {
+            warnings.push(format!("{place}: this clue names the answer: {t}"));
+        }
+    }
+}
+
 /// Turn validated JSON into typed data. Only call after `validate` found no errors.
 fn build(cdoc: &Value, sdoc: &Value) -> Data {
     let s = |v: &Value| v.as_str().unwrap_or_default().to_string();
     let list = |v: &Value| v.as_array().map(|a| a.iter().map(s).collect()).unwrap_or_default();
     let optional = |v: Option<&Value>| text(v).map(str::to_string);
 
+    // English with its Spanish, from the same place in the "es" section.
+    let both = |en: &Value, es: Option<&Value>| Text { en: s(en), es: text(es).map(str::to_string) };
+    let both_lists = |en: &Value, es: Option<&Value>| -> Vec<Text> {
+        let es = es.and_then(Value::as_array);
+        en.as_array().into_iter().flatten().enumerate().map(|(i, v)| both(v, es.and_then(|l| l.get(i)))).collect()
+    };
     let countries = cdoc["countries"]
         .as_array()
         .into_iter()
         .flatten()
-        .map(|c| Country {
-            country: s(&c["country"]),
-            city: s(&c["city"]),
-            lat: c["lat"].as_f64().unwrap_or_default(),
-            lon: c["lon"].as_f64().unwrap_or_default(),
-            about: optional(c.get("about")),
-            treasures: list(&c["treasures"]),
-            clues: c["clues"].as_object().into_iter().flatten().map(|(cat, texts)| (cat.clone(), list(texts))).collect(),
+        .map(|c| {
+            let es = c.get("es");
+            let es_of = |key: &str| es.and_then(|e| e.get(key));
+            Country {
+                country: s(&c["country"]),
+                name: both(&c["country"], es_of("country")),
+                city: both(&c["city"], es_of("city")),
+                lat: c["lat"].as_f64().unwrap_or_default(),
+                lon: c["lon"].as_f64().unwrap_or_default(),
+                about: text(c.get("about")).map(|_| both(&c["about"], es_of("about"))),
+                treasures: both_lists(&c["treasures"], es_of("treasures")),
+                clues: c["clues"]
+                    .as_object()
+                    .into_iter()
+                    .flatten()
+                    .map(|(cat, texts)| (cat.clone(), both_lists(texts, es_of("clues").and_then(|e| e.get(cat)))))
+                    .collect(),
+            }
         })
         .collect();
     let traits: Vec<Trait> = sdoc["traits"]
         .as_array()
         .into_iter()
         .flatten()
-        .map(|t| Trait {
-            key: s(&t["key"]),
-            label: s(&t["label"]),
-            clues: list(&t["clues"]),
-            computer: t.get("computer").and_then(Value::as_bool).unwrap_or(true),
-            phrases: t
-                .get("phrases")
-                .and_then(Value::as_object)
-                .into_iter()
-                .flatten()
-                .map(|(k, v)| (k.trim().to_lowercase(), s(v)))
-                .collect(),
+        .map(|t| {
+            let es = t.get("es");
+            let map = |v: Option<&Value>| -> HashMap<String, String> {
+                v.and_then(Value::as_object).into_iter().flatten().map(|(k, v)| (k.trim().to_lowercase(), s(v))).collect()
+            };
+            Trait {
+                key: s(&t["key"]),
+                label: both(&t["label"], es.and_then(|e| e.get("label"))),
+                clues: list(&t["clues"]),
+                clues_es: es.and_then(|e| e.get("clues")).map(list).unwrap_or_default(),
+                computer: t.get("computer").and_then(Value::as_bool).unwrap_or(true),
+                phrases: map(t.get("phrases")),
+                phrases_es: map(es.and_then(|e| e.get("phrases"))),
+                values_es: map(es.and_then(|e| e.get("values"))),
+            }
         })
         .collect();
     let suspects = sdoc["suspects"]
@@ -408,7 +615,15 @@ fn build(cdoc: &Value, sdoc: &Value) -> Data {
             name: s(&p["name"]),
             sex: s(&p["sex"]).trim().to_lowercase(),
             traits: traits.iter().map(|t| (t.key.clone(), s(&p[&t.key]).trim().to_string())).collect(),
-            bio: optional(p.get("bio")),
+            traits_es: p
+                .get("es")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+                .filter(|(k, _)| *k != "bio")
+                .map(|(k, v)| (k.clone(), s(v).trim().to_string()))
+                .collect(),
+            bio: text(p.get("bio")).map(|_| both(&p["bio"], p.get("es").and_then(|e| e.get("bio")))),
             catchphrase: optional(p.get("catchphrase")),
             skin: optional(p.get("skin")).map(|s| s.trim().to_lowercase()),
         })

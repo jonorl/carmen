@@ -5,6 +5,7 @@
 use macroquad::prelude::*;
 
 use crate::game::PLACES;
+use crate::lang::{self, Lang, lang, tr};
 use crate::pixels::{Canvas, Rgb, text_width};
 
 pub const ART_W: i32 = 104;
@@ -27,8 +28,19 @@ const BLUE: Rgb = [70, 90, 220];
 const YELLOW: Rgb = [245, 200, 40];
 const BROWN: Rgb = [120, 78, 44];
 
-/// One picture per entry in PLACES, in the same order.
-pub fn pictures() -> Vec<Texture2D> {
+/// One picture per entry in PLACES, in the same order, for each language
+/// (English, then Spanish), since some have signs.
+pub fn pictures() -> [Vec<Texture2D>; 2] {
+    let was = lang();
+    let sets = [Lang::En, Lang::Es].map(|l| {
+        lang::set(l);
+        pictures_now()
+    });
+    lang::set(was);
+    sets
+}
+
+fn pictures_now() -> Vec<Texture2D> {
     PLACES
         .iter()
         .map(|place| {
@@ -85,7 +97,7 @@ fn bank(cv: &mut Canvas) {
         cv.rect(x - 1, 29, 7, 2, STONE);
     }
     cv.rect(16, 22, 72, 7, STONE);
-    sign(cv, 52, 23, "BANK", DARK);
+    sign(cv, 52, 23, tr("BANK", "BANCO"), DARK);
     cv.peak(52, 21, 38, 12, STONE);
     cv.peak(52, 19, 28, 7, STONE_SHADE);
     flag(cv, 52, 0, [GREEN, WHITE]);
@@ -134,7 +146,7 @@ fn library(cv: &mut Canvas) {
     }
     cv.rect(48, 46, 8, 18, BROWN);
     cv.rect(8, 18, 88, 8, STONE);
-    sign(cv, 52, 19, "LIBRARY", DARK);
+    sign(cv, 52, 19, tr("LIBRARY", "BIBLIOTECA"), DARK);
     cv.peak(52, 17, 18, 8, STONE);
     cv.rect(34, 62, 36, 2, GREY);
     cv.rect(30, 64, 44, 2, LIGHT_GREY);
@@ -166,7 +178,7 @@ fn museum(cv: &mut Canvas) {
 fn market(cv: &mut Canvas) {
     // Three stalls with striped awnings and heaps of fruit, under a banner.
     cv.rect(28, 6, 48, 9, YELLOW);
-    sign(cv, 52, 8, "MARKET", DARK);
+    sign(cv, 52, 8, tr("MARKET", "MERCADO"), DARK);
     for (k, colour) in [RED, GREEN, BLUE].into_iter().enumerate() {
         let x = 3 + k as i32 * 34;
         cv.rect(x, 24, 2, 40, BROWN);

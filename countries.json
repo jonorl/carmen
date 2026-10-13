@@ -5,6 +5,7 @@
     "Clues describe what the thief did or asked about, and should point to this country without naming it or the arrival city.",
     "Use {They}/{they}, {Them}/{them}, {Their}/{their} for the thief, with verbs that work for he, she and they.",
     "Give each country at least 3 clues (5 or more is better), and avoid facts that go stale, such as leaders or populations.",
+    "es holds the same in Spanish (Argentina): the country and city names, about, the treasures in the same order, and the same number of clues of each type. Spanish clues usually leave out the subject; where a word agrees with the thief, use {Él}/{él}, {lo} (lo or la) and {o} (escondid{o}).",
     "After editing, run: cargo run -- --check"
   ],
 
@@ -27,6 +28,24 @@
           "{They} wanted to watch long-distance runners train at altitude in Iten, the 'Home of Champions'.",
           "{They} ordered a platter of nyama choma with ugali."
         ]
+      },
+      "es": {
+        "country": "Kenia", "city": "Nairobi",
+        "about": "Nairobi nació como un depósito ferroviario y se convirtió en el centro de negocios más activo de África Oriental. Es una de las pocas capitales con un parque nacional, leones incluidos, justo en sus afueras.",
+        "treasures": ["la cinta de llegada de una maratón récord mundial", "un collar masái de cuentas del tamaño de una rueda de carreta"],
+        "clues": {
+          "flag": ["Preguntó por una bandera negra, roja y verde con el escudo de un guerrero y dos lanzas cruzadas."],
+          "currency": ["Preguntó cómo pagar con M-Pesa, el servicio de dinero por celular que nació ahí en 2007."],
+          "landmark": [
+            "Quería ver a los ñus cruzar el río Mara, en la reserva Maasai Mara.",
+            "Quería darle de comer en la mano a una jirafa de Rothschild en un centro de jirafas en las afueras de la capital."
+          ],
+          "geography": ["Preguntó cómo llegar al lago Turkana, el lago desértico permanente más grande del mundo."],
+          "culture": [
+            "Quería ver entrenar en la altura a los fondistas de Iten, el 'Hogar de los Campeones'.",
+            "Pidió una fuente de nyama choma con ugali."
+          ]
+        }
       }
     },
     {
@@ -47,6 +66,24 @@
           "{They} ordered a rolex: an omelette rolled up in a chapati.",
           "{They} hopped on a boda boda motorbike taxi to tour a city of seven hills."
         ]
+      },
+      "es": {
+        "country": "Uganda", "city": "Kampala",
+        "about": "Kampala creció sobre siete colinas cerca de la costa norte del lago Victoria. El país está sobre la línea del ecuador y alberga a cerca de la mitad de los gorilas de montaña del mundo.",
+        "treasures": ["el rolex más largo del mundo (un rollo de chapati con huevo)", "un boda-boda de oro"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de seis franjas negras, amarillas y rojas con una grulla coronada en un círculo blanco."],
+          "language": ["Practicó el saludo 'Oli otya?' de la región central."],
+          "landmark": [
+            "Quería ver dónde nace el Nilo Blanco, a la salida del lago Victoria, en Jinja.",
+            "Pidió un permiso para ir a ver a los gorilas de montaña del Bosque Impenetrable de Bwindi."
+          ],
+          "geography": ["Quería escalar los Rwenzori, las nevadas 'Montañas de la Luna'."],
+          "culture": [
+            "Pidió un rolex: un omelette enrollado en un chapati.",
+            "Se subió a un boda boda, una moto-taxi, para recorrer una ciudad de siete colinas."
+          ]
+        }
       }
     },
     {
@@ -67,6 +104,24 @@
           "{They} asked about the ships passing through the Suez Canal."
         ],
         "culture": ["{They} ordered a big bowl of koshari."]
+      },
+      "es": {
+        "country": "Egipto", "city": "El Cairo",
+        "about": "El Cairo, una de las ciudades más grandes de África, se extiende a ambos lados del Nilo, justo al sur del delta. Las pirámides de Guiza están en su borde oeste.",
+        "treasures": ["la nariz que le falta a la Esfinge"],
+        "clues": {
+          "flag": ["Preguntó por una bandera roja, blanca y negra con un águila dorada en el medio."],
+          "currency": ["Cambió plata por libras y piastras."],
+          "landmark": [
+            "Quería ir en camello hasta la Gran Pirámide.",
+            "Quería ver la máscara de oro de Tutankamón."
+          ],
+          "geography": [
+            "Planeó un paseo en faluca por el Nilo.",
+            "Preguntó por los barcos que cruzan el canal de Suez."
+          ],
+          "culture": ["Pidió un buen plato de koshari."]
+        }
       }
     },
     {
@@ -85,6 +140,22 @@
         ],
         "geography": ["{They} wanted to see the penguins at Boulders Beach."],
         "culture": ["{They} invited everyone to a braai."]
+      },
+      "es": {
+        "country": "Sudáfrica", "city": "Ciudad del Cabo",
+        "about": "Ciudad del Cabo está al pie de la Montaña de la Mesa, de cima plana, cerca del extremo sudoeste de África. Pingüinos, viñedos y dos océanos quedan a un rato en auto.",
+        "treasures": ["la vuvuzela más molesta del mundo"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de seis colores con una Y verde acostada."],
+          "currency": ["Cambió plata por rands."],
+          "language": ["Preguntó por qué el país tiene doce idiomas oficiales, incluida la lengua de señas."],
+          "landmark": [
+            "Quería subir en teleférico a la Montaña de la Mesa.",
+            "Preguntó por el ferry a Robben Island."
+          ],
+          "geography": ["Quería ver los pingüinos de la playa Boulders."],
+          "culture": ["Invitó a todo el mundo a un braai."]
+        }
       }
     },
     {
@@ -102,6 +173,21 @@
         ],
         "geography": ["{They} asked about ferries to Zanzibar, the Spice Islands."],
         "culture": ["{They} wanted to buy a violet-blue gemstone found in only one place on Earth."]
+      },
+      "es": {
+        "country": "Tanzania", "city": "Dar es Salaam",
+        "about": "Dar es Salaam es la ciudad más grande del país y su puerto principal sobre el océano Índico. Tierra adentro están el Serengueti y la montaña más alta de África.",
+        "treasures": ["el picaporte de la casa de Freddie Mercury en Zanzíbar"],
+        "clues": {
+          "flag": ["Preguntó por una bandera con una franja diagonal negra bordeada de amarillo, entre verde y azul."],
+          "landmark": [
+            "Quería escalar el Kilimanjaro.",
+            "Quería ver la gran migración en las llanuras del Serengueti.",
+            "Preguntó por un safari en el cráter del Ngorongoro."
+          ],
+          "geography": ["Preguntó por los ferris a Zanzíbar, las Islas de las Especias."],
+          "culture": ["Quería comprar una piedra preciosa azul violácea que solo se encuentra en un lugar del mundo."]
+        }
       }
     },
     {
@@ -122,6 +208,24 @@
           "{They} ordered fish and chips with mushy peas.",
           "{They} asked how to get tickets for Wimbledon."
         ]
+      },
+      "es": {
+        "country": "Reino Unido", "city": "Londres",
+        "about": "Londres está a orillas del Támesis y es capital desde hace casi mil años. Los colectivos rojos, los taxis negros y el subte la mantienen en movimiento.",
+        "treasures": ["el minutero del Big Ben", "la cucharita de repuesto de las Joyas de la Corona"],
+        "clues": {
+          "flag": ["Preguntó por una bandera roja, blanca y azul hecha con tres cruces."],
+          "currency": ["Cambió plata por libras esterlinas."],
+          "landmark": [
+            "Quería escuchar las campanadas del Big Ben.",
+            "Preguntó a qué hora es el cambio de guardia en el Palacio de Buckingham."
+          ],
+          "geography": ["Quería cruzar caminando el Puente de la Torre."],
+          "culture": [
+            "Pidió fish and chips con puré de arvejas.",
+            "Preguntó cómo conseguir entradas para Wimbledon."
+          ]
+        }
       }
     },
     {
@@ -139,6 +243,21 @@
         ],
         "geography": ["{They} wanted to visit Mont Saint-Michel at high tide."],
         "culture": ["{They} bought a baguette and a wheel of Camembert."]
+      },
+      "es": {
+        "country": "Francia", "city": "París",
+        "about": "París, la 'Ciudad de la Luz', se extiende a ambos lados del Sena y es una de las ciudades más visitadas del mundo.",
+        "treasures": ["la lamparita de la punta de la Torre Eiffel", "las cejas de la Mona Lisa"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de franjas verticales azul, blanca y roja."],
+          "landmark": [
+            "Quería subir a la Torre Eiffel.",
+            "Quería ver la catedral de Notre-Dame, reabierta después del incendio de 2019.",
+            "Quería ver la Mona Lisa en el Louvre."
+          ],
+          "geography": ["Quería visitar el Mont Saint-Michel con la marea alta."],
+          "culture": ["Se compró una baguette y una horma de camembert."]
+        }
       }
     },
     {
@@ -161,6 +280,26 @@
           "{They} insisted that real carbonara has no cream.",
           "{They} wanted a gondola ride in Venice."
         ]
+      },
+      "es": {
+        "country": "Italia", "city": "Milán",
+        "about": "Milán, en el norte de Italia, es la capital del país en moda, diseño y finanzas. Su catedral de mármol tardó casi seis siglos en terminarse.",
+        "treasures": ["la Madonnina dorada de lo alto del Duomo", "la Última Cena de Leonardo, con pared y todo"],
+        "clues": {
+          "flag": ["Preguntó por una bandera simple de franjas verticales verde, blanca y roja."],
+          "landmark": [
+            "Quería tirar una moneda en la Fontana di Trevi.",
+            "Preguntó por visitas guiadas al Coliseo."
+          ],
+          "geography": [
+            "Quería subir al Vesubio y recorrer las ruinas de Pompeya.",
+            "Preguntó por la península con forma de bota."
+          ],
+          "culture": [
+            "Insistió en que la carbonara de verdad no lleva crema.",
+            "Quería pasear en góndola por Venecia."
+          ]
+        }
       }
     },
     {
@@ -180,6 +319,23 @@
           "{They} wanted to throw tomatoes at La Tomatina.",
           "{They} learned to cook paella and dance flamenco."
         ]
+      },
+      "es": {
+        "country": "España", "city": "Barcelona",
+        "about": "Barcelona, capital de Cataluña, está entre la montaña y el Mediterráneo, y es famosa por los edificios de Gaudí, sus playas y su club de fútbol.",
+        "treasures": ["la paellera más grande del mundo", "un par de zapatos de flamenco de oro"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de franjas rojas y amarillas con un escudo hacia un costado."],
+          "language": ["Practicó la pronunciación de la zeta y algunas palabras en catalán."],
+          "landmark": [
+            "Quería recorrer el Palacio Real de Madrid.",
+            "Preguntó por el palacio de la Alhambra, en Granada."
+          ],
+          "culture": [
+            "Quería tirar tomates en La Tomatina.",
+            "Aprendió a cocinar paella y a bailar flamenco."
+          ]
+        }
       }
     },
     {
@@ -197,6 +353,21 @@
           "{They} wanted to see where the ancient Olympic Games began.",
           "{They} ordered souvlaki and moussaka."
         ]
+      },
+      "es": {
+        "country": "Grecia", "city": "Atenas",
+        "about": "Atenas es una de las ciudades más antiguas del mundo, bajo la mirada de la Acrópolis. La democracia, el teatro y los Juegos Olímpicos nacieron en este país.",
+        "treasures": ["la armadura dorada de Sagitario"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de nueve franjas azules y blancas con una cruz blanca."],
+          "language": ["Practicó un alfabeto que empieza con alfa, beta, gamma."],
+          "landmark": ["Quería subir al Partenón, en la Acrópolis."],
+          "geography": ["Preguntó por los ferris a Santorini y Mykonos."],
+          "culture": [
+            "Quería ver dónde empezaron los Juegos Olímpicos de la Antigüedad.",
+            "Pidió souvlaki y musaka."
+          ]
+        }
       }
     },
     {
@@ -204,7 +375,7 @@
       "city": "Istanbul",
       "lat": 41.01, "lon": 28.98,
       "about": "Istanbul famously spans two continents, split by the Bosphorus strait between Europe and Asia.",
-      "treasures": ["THe world's best lahmacun", "the world's best baklava"],
+      "treasures": ["The world's best lahmacun", "the world's best baklava"],
       "clues": {
         "flag": ["{They} asked about a red flag with a white crescent and star."],
         "currency": ["{They} changed money into lira."],
@@ -218,6 +389,25 @@
           "{They} haggled for rugs in the Grand Bazaar.",
           "{They} bought a box of lokum."
         ]
+      },
+      "es": {
+        "country": "Turquía", "city": "Estambul",
+        "about": "Estambul está repartida entre dos continentes, separados por el estrecho del Bósforo: Europa y Asia.",
+        "treasures": ["el mejor lahmacun del mundo", "el mejor baklava del mundo"],
+        "clues": {
+          "flag": ["Preguntó por una bandera roja con una media luna y una estrella blancas."],
+          "currency": ["Cambió plata por liras."],
+          "language": ["Preguntó por qué el nombre oficial del país en inglés cambió de ortografía en 2022."],
+          "landmark": [
+            "Quería ver Santa Sofía.",
+            "Reservó un paseo en globo sobre las chimeneas de hadas de Capadocia."
+          ],
+          "geography": ["Quería cruzar en ferry de Europa a Asia por el Bósforo."],
+          "culture": [
+            "Regateó alfombras en el Gran Bazar.",
+            "Se compró una caja de lokum."
+          ]
+        }
       }
     },
     {
@@ -234,6 +424,20 @@
         ],
         "geography": ["{They} wanted to see the midnight sun on the Lofoten Islands."],
         "culture": ["{They} asked about brunost, the sweet brown cheese."]
+      },
+      "es": {
+        "country": "Noruega", "city": "Oslo",
+        "about": "Oslo está al fondo de un largo fiordo, rodeada de bosques. Cada diciembre se entrega ahí el Premio Nobel de la Paz.",
+        "treasures": ["la melena de Erling Haaland"],
+        "clues": {
+          "flag": ["Preguntó por una bandera roja con una cruz azul bordeada de blanco."],
+          "landmark": [
+            "Quería navegar por el fiordo de Geiranger.",
+            "Preguntó dónde se exhibe 'El grito' de Edvard Munch."
+          ],
+          "geography": ["Quería ver el sol de medianoche en las islas Lofoten."],
+          "culture": ["Preguntó por el brunost, el queso marrón dulce."]
+        }
       }
     },
     {
@@ -251,6 +455,21 @@
         ],
         "geography": ["{They} asked how about a quarter of the country can lie below sea level."],
         "culture": ["{They} cycled past the tulip fields in spring."]
+      },
+      "es": {
+        "country": "Países Bajos", "city": "Ámsterdam",
+        "about": "Ámsterdam es una ciudad de canales y casas angostas con frontones, donde las bicicletas superan de lejos a los autos.",
+        "treasures": ["el porro más grande del mundo"],
+        "clues": {
+          "flag": ["Preguntó por una bandera simple de franjas horizontales roja, blanca y azul."],
+          "language": ["Practicó cómo decir 'gezellig'."],
+          "landmark": [
+            "Quería visitar la casa de Ana Frank.",
+            "Quería ver los molinos de Kinderdijk."
+          ],
+          "geography": ["Preguntó cómo puede ser que cerca de un cuarto del país esté por debajo del nivel del mar."],
+          "culture": ["Pasó en bici junto a los campos de tulipanes en primavera."]
+        }
       }
     },
     {
@@ -270,6 +489,23 @@
           "{They} asked when Oktoberfest starts in Munich.",
           "{They} ordered a currywurst."
         ]
+      },
+      "es": {
+        "country": "Alemania", "city": "Berlín",
+        "about": "Berlín estuvo dividida por un muro de 1961 a 1989. Hoy es famosa por sus museos, su vida nocturna y la historia que hay en cada esquina.",
+        "treasures": ["los caballos de lo alto de la Puerta de Brandeburgo", "un bloque del viejo Muro"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de franjas horizontales negra, roja y dorada."],
+          "landmark": [
+            "Quería pasar por la Puerta de Brandeburgo.",
+            "Quería ver el tramo más largo que queda del Muro, hoy cubierto de murales."
+          ],
+          "geography": ["Quería visitar el castillo de cuento de Neuschwanstein, en Baviera."],
+          "culture": [
+            "Preguntó cuándo empieza el Oktoberfest en Múnich.",
+            "Pidió una currywurst."
+          ]
+        }
       }
     },
     {
@@ -290,6 +526,24 @@
           "{They} rode a shinkansen bullet train.",
           "{They} asked when the cherry blossoms come out."
         ]
+      },
+      "es": {
+        "country": "Japón", "city": "Tokio",
+        "about": "Tokio es una de las áreas metropolitanas más grandes del mundo, con calles llenas de neón junto a templos y jardines tranquilos.",
+        "treasures": ["el EVA-01 de NERV"],
+        "clues": {
+          "flag": ["Preguntó por una bandera blanca con un solo círculo rojo."],
+          "currency": ["Cambió plata por yenes."],
+          "language": ["Practicó cómo escribir hiragana y katakana."],
+          "landmark": [
+            "Quería sacarle fotos al monte Fuji.",
+            "Quería cruzar el famoso cruce peatonal de Shibuya."
+          ],
+          "culture": [
+            "Viajó en un shinkansen, el tren bala.",
+            "Preguntó cuándo florecen los cerezos."
+          ]
+        }
       }
     },
     {
@@ -306,6 +560,20 @@
         ],
         "geography": ["{They} asked about a country with eight of the world's ten highest mountains."],
         "culture": ["{They} ordered a plate of momos."]
+      },
+      "es": {
+        "country": "Nepal", "city": "Katmandú",
+        "about": "Katmandú está en un valle alto lleno de templos, estupas y banderas de oración, con el Himalaya en el horizonte.",
+        "treasures": ["una bola de nieve de la cima del Everest", "una bufanda de lana de yak de un kilómetro y medio"],
+        "clues": {
+          "flag": ["Preguntó por la única bandera nacional que no es un rectángulo."],
+          "landmark": [
+            "Quería caminar hasta el campamento base del Everest.",
+            "Quería visitar Lumbini, donde nació Buda."
+          ],
+          "geography": ["Preguntó por un país que tiene ocho de las diez montañas más altas del mundo."],
+          "culture": ["Pidió un plato de momos."]
+        }
       }
     },
     {
@@ -322,6 +590,20 @@
         ],
         "geography": ["{They} asked about Yellowstone, the world's first national park."],
         "culture": ["{They} asked how to get tickets to the Super Bowl."]
+      },
+      "es": {
+        "country": "Estados Unidos", "city": "Miami",
+        "about": "Miami pasó de ser un pequeño puesto comercial a la puerta de entrada entre Estados Unidos y América Latina. Sus playas están bordeadas de hoteles art déco en tonos pastel, y el castellano se escucha tanto como el inglés.",
+        "treasures": ["la sala de trofeos de Messi"],
+        "clues": {
+          "flag": ["Preguntó por una bandera con 50 estrellas y 13 franjas."],
+          "landmark": [
+            "Tomó un ferry a la Estatua de la Libertad.",
+            "Quería bajar caminando al Gran Cañón."
+          ],
+          "geography": ["Preguntó por Yellowstone, el primer parque nacional del mundo."],
+          "culture": ["Preguntó cómo conseguir entradas para el Super Bowl."]
+        }
       }
     },
     {
@@ -341,6 +623,23 @@
           "{They} wanted to see the marigold altars of the Day of the Dead.",
           "{They} ordered tacos al pastor."
         ]
+      },
+      "es": {
+        "country": "México", "city": "Ciudad de México",
+        "about": "La Ciudad de México se construyó sobre las ruinas de la capital azteca, Tenochtitlan, en lo alto de un valle entre montañas.",
+        "treasures": ["la piñata más grande del mundo"],
+        "clues": {
+          "flag": ["Preguntó por una bandera verde, blanca y roja con un águila comiéndose una serpiente sobre un nopal."],
+          "landmark": [
+            "Quería subir a la Pirámide del Sol en Teotihuacan.",
+            "Preguntó por la ciudad maya de Chichén Itzá."
+          ],
+          "geography": ["Quería nadar en los cenotes de Yucatán."],
+          "culture": [
+            "Quería ver los altares de cempasúchil del Día de Muertos.",
+            "Pidió tacos al pastor."
+          ]
+        }
       }
     },
     {
@@ -358,6 +657,21 @@
           "{They} wanted to dance samba at Carnival.",
           "{They} asked for a feijoada and a glass of fresh açaí."
         ]
+      },
+      "es": {
+        "country": "Brasil", "city": "Río de Janeiro",
+        "about": "Río de Janeiro está apretada entre las montañas y el mar, y es famosa por la playa de Copacabana y el Pan de Azúcar.",
+        "treasures": ["la pelota del 7 a 1 contra Alemania"],
+        "clues": {
+          "flag": ["Preguntó por una bandera verde con un rombo amarillo y un globo azul estrellado."],
+          "currency": ["Cambió plata por reales."],
+          "landmark": ["Quería visitar el Cristo Redentor."],
+          "geography": ["Preguntó por paseos en barco por el Amazonas desde Manaos."],
+          "culture": [
+            "Quería bailar samba en el Carnaval.",
+            "Pidió una feijoada y un vaso de açaí fresco."
+          ]
+        }
       }
     },
     {
@@ -375,6 +689,21 @@
           "{They} wanted an asado and a gourd of mate.",
           "{They} talked about the team that won the 2022 men's World Cup."
         ]
+      },
+      "es": {
+        "country": "Argentina", "city": "Buenos Aires",
+        "about": "Buenos Aires es famosa por sus avenidas anchas, sus cafés y sus milongas que terminan de madrugada.",
+        "treasures": ["la velita de la torta de los 100 años de Mirtha Legrand"],
+        "clues": {
+          "flag": ["Preguntó por una bandera celeste y blanca con un sol dorado."],
+          "landmark": ["Quería ver al glaciar Perito Moreno desprenderse sobre el lago."],
+          "geography": ["Preguntó por el Aconcagua, la montaña más alta fuera de Asia."],
+          "culture": [
+            "Quería aprender a bailar tango.",
+            "Quería un asado y unos mates.",
+            "Habló del equipo que ganó el Mundial masculino de 2022."
+          ]
+        }
       }
     },
     {
@@ -392,6 +721,21 @@
         ],
         "geography": ["{They} wanted to visit the floating reed islands on Lake Titicaca."],
         "culture": ["{They} ordered ceviche with a glass of chicha morada."]
+      },
+      "es": {
+        "country": "Perú", "city": "Lima",
+        "about": "Lima, sobre la costa del Pacífico, fue la capital del imperio español en Sudamérica y hoy es una de las grandes capitales gastronómicas del mundo.",
+        "treasures": ["el banderín del Club Grau"],
+        "clues": {
+          "flag": ["Preguntó por una bandera roja, blanca y roja con una vicuña en el escudo."],
+          "currency": ["Cambió plata por soles."],
+          "landmark": [
+            "Quería hacer el Camino Inca hasta Machu Picchu.",
+            "Preguntó por los vuelos sobre las líneas de Nazca."
+          ],
+          "geography": ["Quería visitar las islas flotantes de totora del lago Titicaca."],
+          "culture": ["Pidió un ceviche con un vaso de chicha morada."]
+        }
       }
     },
     {
@@ -411,6 +755,23 @@
           "{They} asked where to cuddle a koala.",
           "{They} wanted to learn to throw a boomerang."
         ]
+      },
+      "es": {
+        "country": "Australia", "city": "Sídney",
+        "about": "Sídney se levanta alrededor de una bahía espectacular, cruzada por su famoso puente y vigilada por la Ópera, con su techo de velas.",
+        "treasures": ["la receta de galletitas de Stefania"],
+        "clues": {
+          "flag": ["Preguntó por una bandera azul con la Union Jack, una gran estrella de siete puntas y la Cruz del Sur en blanco."],
+          "landmark": [
+            "Quería ver a Uluru ponerse rojo al atardecer.",
+            "Quería ver un espectáculo bajo los techos con forma de vela de la Ópera."
+          ],
+          "geography": ["Quería hacer snorkel en la Gran Barrera de Coral."],
+          "culture": [
+            "Preguntó dónde se puede abrazar a un koala.",
+            "Quería aprender a tirar un bumerán."
+          ]
+        }
       }
     },
     {
@@ -434,6 +795,27 @@
           "{They} ordered an arepa stuffed with reina pepiada.",
           "{They} wanted to learn joropo on the four-stringed cuatro."
         ]
+      },
+      "es": {
+        "country": "Venezuela", "city": "Caracas",
+        "about": "Caracas está en un largo valle entre montañas, separada del Caribe por la muralla verde de El Ávila. El país tiene la cascada más alta del mundo y algunas de las formaciones rocosas más antiguas del planeta.",
+        "treasures": ["un billón de bolívares"],
+        "clues": {
+          "flag": ["Preguntó por una bandera amarilla, azul y roja con un arco de ocho estrellas blancas."],
+          "currency": ["Cambió plata por bolívares."],
+          "landmark": [
+            "Quería sobrevolar el Salto Ángel, la cascada más alta del mundo.",
+            "Preguntó cómo subir al Roraima, un tepuy de cima plana por encima de las nubes."
+          ],
+          "geography": [
+            "Quería ver los relámpagos del Catatumbo sobre el lago de Maracaibo.",
+            "Preguntó cómo navegar hasta las islas de coral de Los Roques."
+          ],
+          "culture": [
+            "Pidió una arepa rellena de reina pepiada.",
+            "Quería aprender joropo con el cuatro, la guitarrita de cuatro cuerdas."
+          ]
+        }
       }
     },
     {
@@ -456,6 +838,26 @@
           "{They} bought a 'Panama' hat and asked to see where those hats are really woven, in Montecristi.",
           "{They} asked where to try roast cuy (guinea pig)."
         ]
+      },
+      "es": {
+        "country": "Ecuador", "city": "Quito",
+        "about": "Quito está a 2.850 metros de altura en los Andes, a pocos kilómetros al sur de la línea del ecuador, con uno de los cascos históricos coloniales mejor conservados de América.",
+        "treasures": ["la guitarra de Julio Jaramillo"],
+        "clues": {
+          "flag": ["Preguntó por una bandera amarilla, azul y roja con un cóndor de alas abiertas sobre un volcán nevado."],
+          "landmark": [
+            "Quería pararse con un pie en cada hemisferio en el monumento de la Mitad del Mundo.",
+            "Preguntó por barcos a las Galápagos para ver tortugas gigantes e iguanas marinas."
+          ],
+          "geography": [
+            "Quería escalar el Chimborazo, cuya cumbre es el punto más alejado del centro de la Tierra.",
+            "Preguntó por caminatas alrededor del cono nevado del Cotopaxi."
+          ],
+          "culture": [
+            "Se compró un sombrero 'Panamá' y preguntó dónde se tejen de verdad, en Montecristi.",
+            "Preguntó dónde probar cuy asado (conejillo de Indias)."
+          ]
+        }
       }
     },
     {
@@ -477,6 +879,25 @@
           "{They} asked about the 1974 'Rumble in the Jungle' between Ali and Foreman.",
           "{They} wanted to dance to rumba and watch the sapeurs show off their designer suits."
         ]
+      },
+      "es": {
+        "country": "República Democrática del Congo", "city": "Kinshasa",
+        "about": "Kinsasa está frente a Brazzaville, del otro lado de un gran río: es el par de capitales más cercanas del mundo después de Roma y el Vaticano. Es una de las ciudades más grandes de África y la cuna de la rumba congoleña.",
+        "treasures": ["el mejor traje de seda de un sapeur"],
+        "clues": {
+          "flag": ["Preguntó por una bandera celeste con una estrella amarilla en la esquina y una franja diagonal roja bordeada de amarillo."],
+          "currency": ["Cambió plata por francos congoleños."],
+          "language": ["Practicó '¡Mbote!', el saludo en lingala."],
+          "landmark": [
+            "Quería asomarse al lago de lava del Nyiragongo, en el Parque Nacional Virunga.",
+            "Preguntó dónde ver un okapi, la jirafa del bosque con patas rayadas como una cebra."
+          ],
+          "geography": ["Quería navegar el río más profundo del mundo, pasando los rápidos de Inga."],
+          "culture": [
+            "Preguntó por la 'Pelea en la Selva' de 1974 entre Ali y Foreman.",
+            "Quería bailar rumba y ver a los sapeurs lucir sus trajes de diseñador."
+          ]
+        }
       }
     },
     {
@@ -498,6 +919,25 @@
           "{They} asked for tickets to a hurling final at Croke Park.",
           "{They} asked about Bloomsday, when people dress up to retrace a day in Ulysses."
         ]
+      },
+      "es": {
+        "country": "Irlanda", "city": "Dublín",
+        "about": "Dublín nació como un asentamiento vikingo sobre el río Liffey y se convirtió en una ciudad de plazas georgianas, pubs y escritores, de Joyce a Beckett.",
+        "treasures": ["la página que le falta al Libro de Kells", "la olla de oro de un leprechaun"],
+        "clues": {
+          "flag": ["Preguntó por una bandera vertical verde, blanca y naranja, con el verde junto al mástil."],
+          "language": ["Practicó 'Dia dhuit' y preguntó por la Gaeltacht."],
+          "landmark": [
+            "Quería caminar por los acantilados de Moher.",
+            "Preguntó cómo llegar a Newgrange para ver el amanecer del solsticio de invierno.",
+            "Quería subir los escalones hasta las chozas de piedra de los monjes en Skellig Michael."
+          ],
+          "geography": ["Quería recorrer en auto la Wild Atlantic Way y besar la piedra de Blarney."],
+          "culture": [
+            "Pidió entradas para una final de hurling en Croke Park.",
+            "Preguntó por el Bloomsday, cuando la gente se disfraza para recorrer un día del Ulises."
+          ]
+        }
       }
     },
     {
@@ -520,6 +960,26 @@
           "{They} wanted to throw coloured powder at the Holi festival.",
           "{They} ordered a masala dosa and a cup of chai."
         ]
+      },
+      "es": {
+        "country": "India", "city": "Nueva Delhi",
+        "about": "Nueva Delhi fue trazada por los británicos en las décadas de 1910 y 1920 junto a una ciudad antigua que fue capital de imperios durante siglos. Sus avenidas anchas llevan al monumento de la Puerta de la India.",
+        "treasures": ["la receta original del pollo tikka masala"],
+        "clues": {
+          "flag": ["Preguntó por una bandera azafrán, blanca y verde con una rueda azul de 24 rayos."],
+          "currency": ["Preguntó qué significa el signo ₹ en las etiquetas de precios."],
+          "language": ["Practicó 'Vanakkam', el saludo en tamil del sur."],
+          "landmark": [
+            "Quería ver el Taj Mahal al amanecer en Agra.",
+            "Preguntó por el Templo Dorado de Amritsar.",
+            "Quería ver las oraciones del atardecer en los ghats de Benarés."
+          ],
+          "geography": ["Preguntó por una casa flotante en los remansos de Kerala."],
+          "culture": [
+            "Quería tirar polvos de colores en el festival de Holi.",
+            "Pidió un masala dosa y una taza de chai."
+          ]
+        }
       }
     },
     {
@@ -543,6 +1003,27 @@
           "{They} wanted to watch kok-boru, polo on horseback played with a goat carcass.",
           "{They} tried kumis, fermented mare's milk."
         ]
+      },
+      "es": {
+        "country": "Kirguistán", "city": "Biskek",
+        "about": "Biskek es una ciudad arbolada de la época soviética, al pie de los nevados del Tian Shan. Más del 90% del país son montañas, y muchas familias todavía pasan el verano en yurtas en los pastos de altura.",
+        "treasures": ["el texto completo de la epopeya de Manas, con su medio millón de versos"],
+        "clues": {
+          "flag": ["Preguntó por una bandera roja con un sol amarillo de cuarenta rayos y la corona de una yurta en el medio."],
+          "currency": ["Cambió plata por soms."],
+          "landmark": [
+            "Quería subir a la torre Burana, un viejo minarete de la Ruta de la Seda.",
+            "Preguntó por el caravasar de piedra de Tash Rabat."
+          ],
+          "geography": [
+            "Quería nadar en el Issyk-Kul, el lago de montaña que nunca se congela.",
+            "Preguntó cómo dormir en una yurta junto al lago Song-Kul."
+          ],
+          "culture": [
+            "Quería ver kok-boru, un polo a caballo que se juega con el cuerpo de una cabra.",
+            "Probó kumis, leche de yegua fermentada."
+          ]
+        }
       }
     },
     {
@@ -564,6 +1045,25 @@
           "{They} wanted to dance the séga on the beach.",
           "{They} ordered dholl puri from a street stall."
         ]
+      },
+      "es": {
+        "country": "Mauricio", "city": "Port Louis",
+        "about": "Port Louis es una capital portuaria muy activa, rodeada de montañas, con un mercado donde se cruzan las comidas india, china, africana y francesa. La isla fue el único hogar del dodo.",
+        "treasures": ["el último huevo de dodo"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de cuatro franjas horizontales: roja, azul, amarilla y verde."],
+          "language": ["Practicó 'Ki manyer?' en criollo de la isla."],
+          "landmark": [
+            "Quería ver las Tierras de Siete Colores de Chamarel.",
+            "Preguntó por un hidroavión sobre la 'cascada submarina' frente a Le Morne Brabant."
+          ],
+          "geography": ["Preguntó por caminatas en las gargantas del Black River."],
+          "culture": [
+            "Preguntó dónde ver un esqueleto de dodo.",
+            "Quería bailar séga en la playa.",
+            "Pidió un dholl puri en un puesto callejero."
+          ]
+        }
       }
     },
     {
@@ -586,6 +1086,26 @@
           "{They} asked about the old port that gave mocha coffee its name.",
           "{They} ordered saltah, a bubbling meat stew topped with fenugreek froth."
         ]
+      },
+      "es": {
+        "country": "Yemen", "city": "Saná",
+        "about": "Saná es una de las ciudades habitadas sin interrupción más antiguas del mundo. Su casco antiguo amurallado está lleno de casas torre decoradas con yeso blanco, como gigantescas casitas de jengibre.",
+        "treasures": ["una daga jambiya con joyas incrustadas"],
+        "clues": {
+          "flag": ["Preguntó por una bandera horizontal roja, blanca y negra, sin emblema."],
+          "landmark": [
+            "Quería ver Shibam, el 'Manhattan del desierto', con sus rascacielos de adobe.",
+            "Preguntó por el palacio Dar al-Hajar, construido sobre una roca."
+          ],
+          "geography": [
+            "Preguntó cómo llegar a Socotra para ver los árboles de sangre de dragón.",
+            "Preguntó por el estrecho de Bab el-Mandeb, a la entrada del mar Rojo."
+          ],
+          "culture": [
+            "Preguntó por el viejo puerto que le dio nombre al café moca.",
+            "Pidió saltah, un guiso de carne hirviendo cubierto de espuma de fenogreco."
+          ]
+        }
       }
     },
     {
@@ -607,6 +1127,25 @@
           "{They} asked about Trappist beers brewed by monks.",
           "{They} followed a comic-strip mural trail looking for Tintin and the Smurfs."
         ]
+      },
+      "es": {
+        "country": "Bélgica", "city": "Bruselas",
+        "about": "En Bruselas están las principales instituciones de la Unión Europea y de la OTAN, y la Grand-Place, una de las plazas más ornamentadas de Europa.",
+        "treasures": ["el jopo original de Tintín"],
+        "clues": {
+          "flag": ["Preguntó por una bandera vertical negra, amarilla y roja."],
+          "language": ["Preguntó si hablar neerlandés, francés o alemán, según la región."],
+          "landmark": [
+            "Quería subir al Atomium, un modelo gigante de un cristal de hierro.",
+            "Paseó en bote por los canales medievales de Brujas."
+          ],
+          "geography": ["Quería recorrer el campo de batalla de Waterloo."],
+          "culture": [
+            "Pidió papas fritas con mayonesa y un waffle de postre.",
+            "Preguntó por las cervezas trapenses que hacen los monjes.",
+            "Siguió una ruta de murales de historietas buscando a Tintín y los Pitufos."
+          ]
+        }
       }
     },
     {
@@ -627,6 +1166,24 @@
           "{They} wanted to follow the candombe drummers through the streets at carnival.",
           "{They} asked about the stadium where the first World Cup final took place."
         ]
+      },
+      "es": {
+        "country": "Uruguay", "city": "Montevideo",
+        "about": "Montevideo se extiende a lo largo del ancho estuario marrón del Río de la Plata, con una rambla de más de 20 kilómetros. El país organizó y ganó el primer Mundial de fútbol, en 1930.",
+        "treasures": ["la pelota del primer Mundial, hecha con cuero de dinosaurio"],
+        "clues": {
+          "flag": ["Preguntó por una bandera de nueve franjas azules y blancas con un sol sonriente en la esquina."],
+          "landmark": [
+            "Quería caminar por las calles empedradas de Colonia del Sacramento.",
+            "Preguntó por la escultura de la mano gigante que sale de la arena en Punta del Este."
+          ],
+          "geography": ["Preguntó cómo llegar a Cabo Polonio, un pueblo costero al que no llega ningún camino."],
+          "culture": [
+            "Pidió un chivito, un sándwich de lomo cargado de jamón, huevo y queso.",
+            "Quería seguir a los tambores del candombe por las calles en carnaval.",
+            "Preguntó por el estadio donde se jugó la primera final de un Mundial."
+          ]
+        }
       }
     },    
     {
@@ -644,6 +1201,21 @@
         ],
         "geography": ["{They} wanted to visit Herman Toothrot castaway site."],
         "culture": ["{They} ordered grog made from a special root."]
+      },
+      "es": {
+        "country": "Monkey Island", "city": "Monkey Island",
+        "about": "La legendaria Monkey Island. ¿Cómo llegaste hasta acá, si no tenés una cabeza?",
+        "treasures": ["el secreto de Monkey Island"],
+        "clues": {
+          "flag": ["Preguntó por una bandera negra con una calavera."],
+          "currency": ["Cambió plata por doblones."],
+          "landmark": [
+            "Quería ir a la gran Cabeza de Mono.",
+            "Preguntó cómo visitar la aldea de los caníbales."
+          ],
+          "geography": ["Quería visitar el lugar donde naufragó Herman Toothrot."],
+          "culture": ["Pidió grog hecho con una raíz especial."]
+        }
       }
     }
   ]

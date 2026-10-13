@@ -23,7 +23,9 @@ To put it on a website, run `./build-web.sh` (the first time, also `rustup targe
 
 On a phone held upright, the picture moves above the text panel and buttons, and a text box pops up for typing your name. Turned sideways, it's the original layout.
 
-The menu bar along the top has Game (new case, how to play), Options (sound) and Dossiers, where you can read anyone's file at any time, even at headquarters. The four buttons under the text are the notebook (everything witnesses told you, plus help), the plane (flights), the magnifying glass (interview witnesses) and the crime computer (warrants and dossiers). Click or press a key to skip the typing. Scroll the notes with the mouse wheel.
+The game is in English and in Spanish (Argentina). It starts in your system's or browser's language, and the EN/ES toggle at the right of the menu bar switches it; your choice is remembered.
+
+The menu bar along the top has Game (new case, how to play, about), Options (sound), Bureau (the detective roster) and Dossiers, where you can read anyone's file at any time, even at headquarters. The four buttons under the text are the notebook (everything witnesses told you, plus help), the plane (flights), the magnifying glass (interview witnesses) and the crime computer (warrants and dossiers). Click or press a key to skip the typing. Scroll the notes with the mouse wheel.
 
 ## How a case works
 
@@ -82,6 +84,10 @@ Use `{They}`/`{they}`, `{Them}`/`{them}` and `{Their}`/`{their}` for the thief; 
 
 Inside jokes make the best traits: "Hobby: arguing about football", "Other: falls asleep during films".
 
+### In Spanish
+
+Each trait has an `es` section: its `label`, its witness sentences (`clues`), `values` (each English value as the crime computer shows it in Spanish, like `"bald": "pelado"`) and `phrases` (how witnesses say it, like `"bald": "la cabeza pelada"`). Each person can have an `es` section too, with their own Spanish for a trait; `other` goes there, written for their sex ("se hace el que sabe japonés"). Spanish sentences use `{Él}`/`{él}`, `{lo}` (lo or la) and `{o}` (cansad{o}) where words agree with the thief. Catchphrases stay as they are, in whatever language the person says them. `--check` lists anything missing its Spanish.
+
 ## Countries and clues: `countries.json`
 
 There are 33 countries with about 220 clues, written to stay accurate. They avoid leaders, populations and records that change, and they include newer facts like Türkiye's 2022 name change.
@@ -95,6 +101,8 @@ Each country has:
 - `clues` grouped by type: `flag`, `currency`, `language`, `landmark`, `geography` and `culture`
 
 Witnesses favour certain types. The bank teller likes currency, the check-in agent likes flags and the librarian likes language. A clue should point to the country without naming it or the arrival city, and `--check` warns if one does.
+
+Each country also has an `es` section with the same in Spanish: the country and city names, `about`, the treasures in the same order and the same number of clues of each type. Spanish clues usually leave out the subject ("Preguntó por una bandera..."); where a word agrees with the thief, write `{Él}`/`{él}`, `{lo}` (lo or la) or `{o}` (escondid{o}). `--check` tells you if the Spanish doesn't match the English.
 
 Clues also have to work against each other. Kenya, Uganda and Tanzania all use shillings, and several countries use dollars or pesos, so currency clues are left out where they'd be ambiguous. Keep that in mind when adding countries.
 

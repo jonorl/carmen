@@ -10,6 +10,7 @@ mod data;
 mod game;
 mod jail;
 mod landmarks;
+mod lang;
 mod map;
 mod net;
 mod people;
@@ -21,6 +22,7 @@ mod rng;
 mod scene;
 mod sound;
 mod sprites;
+mod storage;
 mod touch;
 mod ui;
 
@@ -31,15 +33,16 @@ use std::rc::Rc;
 use macroquad::experimental::coroutines::{Coroutine, start_coroutine};
 use macroquad::prelude::*;
 
+use carmen_shared::MAX_NAME;
 use data::{Data, LoadError};
 use game::{
-    AGENCY, GAME_TITLE, Game, INTERVIEW_HOURS, Line, PLACES, RANKS, Tone, WARRANT_HOURS, asleep, clock_text, flight_hours, hour_of_day,
+    Game, INTERVIEW_HOURS, Line, PLACES, RANKS, Tone, WARRANT_HOURS, agency, asleep, clock_text, flight_hours, game_title, hour_of_day,
     promotion_news, rank_for,
 };
 use jail::Jail;
+use lang::{Lang, lang, tr};
 use map::{Land, MapView};
 use printer::Printer;
-use carmen_shared::MAX_NAME;
 use progress::Progress;
 use rng::Rng;
 use scene::TimeOfDay;
@@ -343,10 +346,15 @@ struct Case {
     map: Option<(usize, MapView, Texture2D)>,
 }
 
+/// What the crime computer's printer says when it's waiting.
+fn ready() -> &'static str {
+    tr("READY.", "LISTO.")
+}
+
 impl Case {
     fn new(game: Game, panel: Panel) -> Case {
         let mut printer = Printer::new();
-        printer.print("READY.");
+        printer.print(ready());
         printer.finish();
         let mut case = Case {
             game,
@@ -435,14 +443,21 @@ impl Hq {
     /// and their arrests so far.
     fn new(returning: Option<(&str, u32)>) -> Hq {
         let mut printer = Printer::new();
-        printer.print(&format!("{GAME_TITLE}\n\n{}\n\n", AGENCY.to_uppercase()));
+        printer.print(&format!("{}\n\n{}\n\n", game_title(), agency().to_uppercase()));
         let step = match returning {
             None => {
-                printer.print("Welcome to headquarters.\n\nDetective at keyboard, please identify yourself:\n");
+                printer.print(tr(
+                    "Welcome to headquarters.\n\nDetective at keyboard, please identify yourself:\n",
+                    "Cuartel general.\n\nDetective al teclado, identificate:\n",
+                ));
                 Step::Name
             }
             Some((name, arrests)) => {
-                printer.print(&format!("Welcome back, {}.\n\nYour rank: {}.", display_name(name), RANKS[rank_for(arrests)].name));
+                let (who, rank) = (display_name(name), RANKS[rank_for(arrests)].label());
+                printer.print(&tr(
+                    format!("Welcome back, {who}.\n\nYour rank: {rank}."),
+                    format!("Hola de nuevo, {who}.\n\nTu rango: {rank}."),
+                ));
                 Step::Assignment
             }
         };
@@ -495,18 +510,22 @@ enum Action {
     CloseRoster,
     About(bool),
     OpenLink(&'static str),
+    Language(Lang),
 }
 
 /// The menus across the top of the screen.
-const MENUS: [&str; 4] = ["Game", "Options", "Bureau", "Dossiers"];
+fn menus() -> [&'static str; 4] {
+    tr(["Game", "Options", "Bureau", "Dossiers"], ["Juego", "Opciones", "Agencia", "Fichas"])
+}
 
 struct App {
     data: Rc<Data>,
     ui: Ui,
     land: Land,
     sounds: Option<Sounds>,
-    /// Pictures of the places to investigate, in PLACES order.
-    place_art: Vec<Texture2D>,
+    /// Pictures of the places to investigate, in PLACES order, in English
+    /// and in Spanish.
+    place_art: [Vec<Texture2D>; 2],
     /// The witness at each place, in PLACES order.
     portraits: Vec<Texture2D>,
     /// Each suspect's dossier photo.
@@ -536,6 +555,7 @@ struct App {
 }
 
 async fn run(data: Rc<Data>, args: Args) {
+    lang::start();
     let pixel = load_ttf_font_from_bytes(include_bytes!("../assets/fonts/PixelifySans.ttf"));
     let fallback = load_ttf_font_from_bytes(include_bytes!("../assets/fonts/NotoSans-Regular.ttf"));
     let mono = load_ttf_font_from_bytes(include_bytes!("../assets/fonts/VT323.ttf"));
@@ -621,12 +641,19 @@ impl App {
         // The menu bar sits above everything, so it sees the mouse first;
         // while a menu is open the screen underneath ignores input.
         let titles = menu_titles(&self.ui);
-        if let Some(i) = (0..MENUS.len()).find(|&i| self.ui.hovered(titles[i])) {
+        if let Some(i) = (0..titles.len()).find(|&i| self.ui.hovered(titles[i])) {
             if self.ui.take_click(titles[i]) {
                 self.menu = if self.menu == Some(i) { None } else { Some(i) };
             } else if self.menu.is_some() {
                 self.menu = Some(i);
             }
+        }
+        // Like the menu titles, the language toggle sees the mouse before the screen.
+        if self.menu.is_none()
+            && let Some(&(l, r)) = language_buttons(&self.ui).iter().find(|(l, _)| *l != lang())
+            && self.ui.take_click(r)
+        {
+            self.apply(Action::Language(l));
         }
         self.progress.poll();
         // The screen ignores input under an open menu or window.
@@ -647,7 +674,12 @@ impl App {
                     case.show(Panel::Story(story));
                 }
                 case.sync_rows(&self.ui, inner(lay().text).w - 4.0);
-                let art = Art { places: &self.place_art, portraits: &self.portraits, jail: &self.jail, cast: &self.cast };
+                let art = Art {
+                    places: &self.place_art[usize::from(lang() == Lang::Es)],
+                    portraits: &self.portraits,
+                    jail: &self.jail,
+                    cast: &self.cast,
+                };
                 case_screen(&mut self.ui, &self.land, &mut self.scenes, art, case, &mut self.sounds)
             }
         };
@@ -689,7 +721,8 @@ impl App {
                 let mut game = Game::new(Rc::clone(&self.data), RANKS[rank], rng, &self.name);
                 let lines = game.briefing();
                 hq.printer.finish();
-                hq.printer.print(&format!("\n\nAssignment for a {}:\n", RANKS[rank].name));
+                let level = RANKS[rank].label();
+                hq.printer.print(&tr(format!("\n\nAssignment for a {level}:\n"), format!("\n\nMisión de {level}:\n")));
                 for (n, line) in lines.iter().filter(|l| l.tone != Tone::Heading).enumerate() {
                     if n > 0 {
                         hq.printer.pause();
@@ -752,6 +785,7 @@ impl App {
                 self.about = open;
             }
             Action::OpenLink(url) => net::open_url(url),
+            Action::Language(l) => lang::choose(l),
             Action::EndChase => {
                 if let Some(s) = &mut self.sounds {
                     s.stop_chase();
@@ -884,7 +918,7 @@ impl App {
                         for line in case.story_since(before).iter().filter(|l| !l.text.is_empty()) {
                             case.printer.print(&format!("\n{}", line.text));
                         }
-                        case.printer.print("\n\nREADY.");
+                        case.printer.print(&format!("\n\n{}", ready()));
                     }
                     _ => {
                         case.game.give_up();
@@ -942,25 +976,25 @@ fn hq_screen(
     let waiting = hq.printer.waiting();
     let naming = matches!(hq.step, Step::Name) && !busy && !waiting && !hq.help;
 
-    draw_clock_box(ui, "HEADQUARTERS", &clock_text(0), false);
+    draw_clock_box(ui, tr("HEADQUARTERS", "CUARTEL GENERAL"), &clock_text(0), false);
     frame(lay().picture, PAPER, 3.0);
     hq.printer.draw(ui, inner(lay().picture), naming.then_some(name.as_str()));
     frame(lay().text, PAPER, 3.0);
     let r = inner(lay().text);
 
     let prompt = if hq.help {
-        ui.text("HOW TO PLAY", r.x, r.y + 14.0, BIG, YELLOW, true);
+        ui.text(tr("HOW TO PLAY", "CÓMO JUGAR"), r.x, r.y + 14.0, BIG, YELLOW, true);
         page(ui, Rect::new(r.x, r.y + 22.0, r.w, r.h - 46.0), &help_paras(), &mut hq.scroll);
-        let back = ui.option(Rect::new(r.x, r.y + r.h - 20.0, 70.0, 20.0), "Back", "", true);
+        let back = ui.option(Rect::new(r.x, r.y + r.h - 20.0, 70.0, 20.0), tr("Back", "Volver"), "", true);
         if back || key == Some(KeyCode::Escape) {
             hq.help = false;
         }
-        "Scroll to read, then go back."
+        tr("Scroll to read, then go back.", "Deslizá para leer y después volvé.")
     } else {
         match hq.step {
             Step::Name => {
-                ui.text("IDENTIFY YOURSELF", r.x, r.y + 14.0, BIG, YELLOW, true);
-                ui.text("Type your name, then press Enter.", r.x, r.y + 32.0, SMALL, GREY, false);
+                ui.text(tr("IDENTIFY YOURSELF", "IDENTIFICATE"), r.x, r.y + 14.0, BIG, YELLOW, true);
+                ui.text(tr("Type your name, then press Enter.", "Escribí tu nombre y apretá Enter."), r.x, r.y + 32.0, SMALL, GREY, false);
                 let input = Rect::new(r.x, r.y + 40.0, r.w, 22.0);
                 fill(input, NAVY);
                 outline(input, PAPER);
@@ -986,43 +1020,58 @@ fn hq_screen(
                     if matches!(key, Some(KeyCode::Enter | KeyCode::KpEnter)) || touch::entered() {
                         hq.printer.type_now(display_name(name));
                         let who = display_name(name).to_string();
-                        hq.printer.print(&format!("\n\nYou have been identified, {who}."));
+                        hq.printer.print(&tr(format!("\n\nYou have been identified, {who}."), format!("\n\nIdentidad confirmada, {who}.")));
                         progress.look_up(name);
                         hq.step = Step::Checking(get_time());
                     }
                 }
-                "Type your name and press Enter."
+                tr("Type your name and press Enter.", "Escribí tu nombre y apretá Enter.")
             }
             Step::Checking(since) => {
-                ui.text("CHECKING RECORDS", r.x, r.y + 14.0, BIG, YELLOW, true);
+                ui.text(tr("CHECKING RECORDS", "REVISANDO ARCHIVOS"), r.x, r.y + 14.0, BIG, YELLOW, true);
                 // Rather a stale rank than a long wait: a late answer still
                 // counts, it just isn't printed.
                 let given_up = get_time() - since > CHECK_SECONDS;
                 if !busy && (!progress.looking_up(name) || given_up) {
-                    let rank = RANKS[rank_for(progress.arrests(name))].name;
-                    hq.printer.print(&format!("\n\nYour rank: {rank}."));
+                    let rank = RANKS[rank_for(progress.arrests(name))].label();
+                    hq.printer.print(&tr(format!("\n\nYour rank: {rank}."), format!("\n\nTu rango: {rank}.")));
                     hq.step = Step::Assignment;
                 }
-                "Checking the agency's records…"
+                tr("Checking the agency's records…", "Revisando los archivos de la agencia…")
             }
             Step::Assignment => {
-                ui.text("YOUR RANK", r.x, r.y + 14.0, BIG, YELLOW, true);
+                ui.text(tr("YOUR RANK", "TU RANGO"), r.x, r.y + 14.0, BIG, YELLOW, true);
                 let arrests = progress.arrests(name);
                 let rank = rank_for(arrests);
                 let plural = |n: u32| if n == 1 { "" } else { "s" };
-                ui.text(RANKS[rank].name, r.x, r.y + 36.0, BIG, PAPER, true);
-                ui.text(&format!("{arrests} arrest{} so far.", plural(arrests)), r.x, r.y + 56.0, SMALL, GREY, false);
+                ui.text(RANKS[rank].label(), r.x, r.y + 36.0, BIG, PAPER, true);
+                let so_far = tr(
+                    format!("{arrests} arrest{} so far.", plural(arrests)),
+                    format!("{arrests} arresto{} hasta ahora.", plural(arrests)),
+                );
+                ui.text(&so_far, r.x, r.y + 56.0, SMALL, GREY, false);
                 if let Some(next) = RANKS.get(rank + 1) {
-                    let n = next.arrests - arrests;
-                    ui.text(&format!("{n} more for promotion to {}.", next.name), r.x, r.y + 72.0, SMALL, GREY, false);
+                    let (n, to) = (next.arrests - arrests, next.label());
+                    ui.text(
+                        &tr(format!("{n} more for promotion to {to}."), format!("{n} más para ascender a {to}.")),
+                        r.x,
+                        r.y + 72.0,
+                        SMALL,
+                        GREY,
+                        false,
+                    );
                 } else {
-                    ui.text("The agency's highest rank.", r.x, r.y + 72.0, SMALL, GREY, false);
+                    ui.text(tr("The agency's highest rank.", "El rango más alto de la agencia."), r.x, r.y + 72.0, SMALL, GREY, false);
                 }
                 // Each rank's cases are longer, or leave less time for wrong turns.
                 let case = &RANKS[rank_override.unwrap_or(rank)];
-                let spare = ["No time for mistakes.", "Time for one wrong turn.", "Time for two wrong turns."];
+                let spare = tr(
+                    ["No time for mistakes.", "Time for one wrong turn.", "Time for two wrong turns."],
+                    ["Sin tiempo para errores.", "Tiempo para un desvío.", "Tiempo para dos desvíos."],
+                );
+                let (legs, spare) = (case.legs, spare[case.spare_detours.min(2)]);
                 ui.text(
-                    &format!("Cases: {} flights. {}", case.legs, spare[case.spare_detours.min(2)]),
+                    &tr(format!("Cases: {legs} flights. {spare}"), format!("Casos: {legs} vuelos. {spare}")),
                     r.x,
                     r.y + 96.0,
                     SMALL,
@@ -1030,28 +1079,37 @@ fn hq_screen(
                     false,
                 );
                 if rank_override.is_some() {
-                    ui.text(&format!("(Playing {} cases, from --rank.)", case.name), r.x, r.y + 112.0, SMALL, GREY, false);
+                    let level = case.label();
+                    ui.text(
+                        &tr(format!("(Playing {level} cases, from --rank.)"), format!("(Casos de {level}, por --rank.)")),
+                        r.x,
+                        r.y + 112.0,
+                        SMALL,
+                        GREY,
+                        false,
+                    );
                 }
-                let take = ui.option(Rect::new(r.x, r.y + 126.0, r.w, 20.0), "Take your next case", "Enter", true);
+                let take =
+                    ui.option(Rect::new(r.x, r.y + 126.0, r.w, 20.0), tr("Take your next case", "Tomá tu próximo caso"), "Enter", true);
                 if take || (!busy && matches!(key, Some(KeyCode::Enter | KeyCode::KpEnter))) {
                     return Some(Action::Start);
                 }
-                "Take your next case when you're ready."
+                tr("Take your next case when you're ready.", "Tomá tu próximo caso cuando quieras.")
             }
-            Step::Briefing if busy => "Printing your case file…",
+            Step::Briefing if busy => tr("Printing your case file…", "Imprimiendo el expediente…"),
             // Waiting between paragraphs, or done: either way a key carries on.
-            Step::Briefing => "Press any key or button to continue.",
+            Step::Briefing => tr("Press any key or button to continue.", "Apretá cualquier tecla o botón para seguir."),
         }
     };
 
     if !hq.help && !matches!(hq.step, Step::Briefing) {
         let footer = r.y + r.h - 20.0;
-        if ui.option(Rect::new(r.x, footer, 124.0, 20.0), "How to play", "", true) {
+        if ui.option(Rect::new(r.x, footer, 124.0, 20.0), tr("How to play", "Cómo jugar"), "", true) {
             hq.help = true;
             hq.scroll = 0.0;
         }
         sound_toggle(ui, Rect::new(r.x + 130.0, footer, 112.0, 20.0), sounds);
-        if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 54.0, footer, 54.0, 20.0), "Quit", "", true) {
+        if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 54.0, footer, 54.0, 20.0), tr("Quit", "Salir"), "", true) {
             return Some(Action::Quit);
         }
     }
@@ -1081,9 +1139,18 @@ fn prompt_strip(ui: &Ui, text: &str) {
     }
 }
 
+fn sound_label(on: bool) -> &'static str {
+    match (on, lang()) {
+        (true, Lang::En) => "Sound: on",
+        (false, Lang::En) => "Sound: off",
+        (true, Lang::Es) => "Sonido: sí",
+        (false, Lang::Es) => "Sonido: no",
+    }
+}
+
 fn sound_toggle(ui: &mut Ui, r: Rect, sounds: &mut Option<Sounds>) {
     if let Some(s) = sounds {
-        let label = if s.on { "Sound: on" } else { "Sound: off" };
+        let label = sound_label(s.on);
         if ui.option(r, label, "", true) {
             s.on = !s.on;
         }
@@ -1118,7 +1185,7 @@ fn case_screen(
             s.tick();
         }
     }
-    draw_clock_box(ui, &game.country(game.here).city, &clock_text(case.shown_t), running_late);
+    draw_clock_box(ui, game.country(game.here).city(), &clock_text(case.shown_t), running_late);
 
     frame(lay().picture, PAPER, 3.0);
     let picture = inner(lay().picture);
@@ -1211,7 +1278,7 @@ fn place_picker(ui: &mut Ui, place_art: &[Texture2D], case: &Case) -> Option<Act
         } else {
             PAPER
         };
-        ui.text_centred(PLACES[p].name, row.x + row.w / 2.0, row.y + 16.0, BIG, colour, true);
+        ui.text_centred(PLACES[p].label(), row.x + row.w / 2.0, row.y + 16.0, BIG, colour, true);
     }
     if let Some((i, started)) = walking {
         // Footprints appear one by one, left and right in turn, from the list
@@ -1232,7 +1299,8 @@ fn place_picker(ui: &mut Ui, place_art: &[Texture2D], case: &Case) -> Option<Act
         // A click or key gets there at once.
         return (ui.take_click(everywhere()) || ui.any_key()).then_some(Action::Arrive(i));
     }
-    let hint = format!("A new interview here takes {INTERVIEW_HOURS} hours.");
+    let hint =
+        tr(format!("A new interview here takes {INTERVIEW_HOURS} hours."), format!("Cada entrevista nueva lleva {INTERVIEW_HOURS} horas."));
     ui.text_centred(&hint, r.x + r.w / 2.0, r.y + r.h - 4.0, SMALL, GREY, false);
 
     if let Some(i) = hovered
@@ -1288,7 +1356,7 @@ fn draw_map(ui: &mut Ui, land: &Land, case: &mut Case, r: Rect) -> Option<Action
         let dest = at(f.to);
         draw_circle(dest.x, dest.y, 3.0, INK);
         draw_circle(dest.x, dest.y, 2.0, YELLOW);
-        label(ui, dest, &game.country(f.to).city, YELLOW, r);
+        label(ui, dest, game.country(f.to).city(), YELLOW, r);
         return None;
     }
 
@@ -1312,7 +1380,7 @@ fn draw_map(ui: &mut Ui, land: &Land, case: &mut Case, r: Rect) -> Option<Action
         let lit = case.hover_dest == Some(d);
         draw_circle(p.x, p.y, 3.0, INK);
         draw_circle(p.x, p.y, 2.0, if lit { YELLOW } else { RED });
-        label(ui, p, &game.country(d).city, if lit { YELLOW } else { PAPER }, r);
+        label(ui, p, game.country(d).city(), if lit { YELLOW } else { PAPER }, r);
     }
     let p = at(here);
     draw_circle(p.x, p.y, 3.0, INK);
@@ -1400,17 +1468,17 @@ fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Opti
                 case.typed_from = f64::NEG_INFINITY;
             }
             if ended && done {
-                if ui.option(Rect::new(r.x, r.y + r.h - 20.0, 120.0, 20.0), "New case", "", true) {
+                if ui.option(Rect::new(r.x, r.y + r.h - 20.0, 120.0, 20.0), tr("New case", "Nuevo caso"), "", true) {
                     return Some(Action::ToTitle);
                 }
-                if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 70.0, r.y + r.h - 20.0, 70.0, 20.0), "Quit", "", true) {
+                if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 70.0, r.y + r.h - 20.0, 70.0, 20.0), tr("Quit", "Salir"), "", true) {
                     return Some(Action::Quit);
                 }
             }
             None
         }
         Panel::Chase { started, .. } => {
-            chase(ui, art.cast, r, get_time() - started);
+            chase(ui, art.cast, r, get_time() - started, case.game.thief_is_female());
             let over = get_time() - started >= CHASE_SECONDS;
             (over || skip || ui.take_click(r)).then_some(Action::EndChase)
         }
@@ -1438,7 +1506,8 @@ fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Opti
             let (busy, waiting) = (case.printer.busy(), case.printer.waiting());
             if busy || waiting {
                 if waiting {
-                    ui.text("Press a key or click for more.", r.x, r.y + r.h - 6.0, SMALL, GREY, false);
+                    let more = tr("Press a key or click for more.", "Apretá una tecla o hacé clic para seguir.");
+                    ui.text(more, r.x, r.y + r.h - 6.0, SMALL, GREY, false);
                 }
                 // The paper is in the picture frame, so a click anywhere carries on.
                 if skip || ui.take_click(Rect::new(0.0, MENU_H, lay().w, lay().h - MENU_H)) {
@@ -1450,10 +1519,10 @@ fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Opti
                 }
                 return None;
             }
-            if ui.option(Rect::new(r.x, r.y + r.h - 20.0, 120.0, 20.0), "New case", "", true) {
+            if ui.option(Rect::new(r.x, r.y + r.h - 20.0, 120.0, 20.0), tr("New case", "Nuevo caso"), "", true) {
                 return Some(Action::ToTitle);
             }
-            if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 70.0, r.y + r.h - 20.0, 70.0, 20.0), "Quit", "", true) {
+            if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 70.0, r.y + r.h - 20.0, 70.0, 20.0), tr("Quit", "Salir"), "", true) {
                 return Some(Action::Quit);
             }
             None
@@ -1470,7 +1539,11 @@ fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Opti
             if tell && t >= gone {
                 // Low in the panel, like "There goes the suspect!".
                 let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h * 0.73 - 15.0);
-                for (n, line) in ["A S.U.R.M.E. henchman!", "You must be on", "the right track."].into_iter().enumerate() {
+                let lines = tr(
+                    ["A S.U.R.M.E. henchman!", "You must be on", "the right track."],
+                    ["¡Un secuaz de S.U.R.M.E.!", "Vas por", "buen camino."],
+                );
+                for (n, line) in lines.into_iter().enumerate() {
                     ui.text_centred(line, cx, cy + n as f32 * 19.0, BIG, PAPER, true);
                 }
             }
@@ -1504,15 +1577,15 @@ fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Opti
             None
         }
         Panel::Interview { place, said, notes } => {
-            let done = interview(ui, r, &portraits[*place], PLACES[*place].witness, said, notes, typed);
+            let done = interview(ui, r, &portraits[*place], PLACES[*place].witness_label(), said, notes, typed);
             if !done && (skip || ui.take_click(r)) {
                 case.typed_from = f64::NEG_INFINITY;
             }
             None
         }
         Panel::Depart => {
-            let city = &case.game.country(case.game.here).city;
-            ui.text(&format!("Flights from {city}:"), r.x, r.y + 14.0, BIG, YELLOW, true);
+            let city = case.game.country(case.game.here).city();
+            ui.text(&tr(format!("Flights from {city}:"), format!("Vuelos desde {city}:")), r.x, r.y + 14.0, BIG, YELLOW, true);
             case.hover_dest = None;
             for (n, &d) in case.dests.iter().enumerate() {
                 let line = row(28.0 + n as f32 * 24.0);
@@ -1525,15 +1598,16 @@ fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Opti
                     return Some(Action::Fly(d));
                 }
             }
-            ui.text("Or click a red dot on the map.", r.x, r.y + 144.0, SMALL, GREY, false);
+            ui.text(tr("Or click a red dot on the map.", "O hacé clic en un punto rojo del mapa."), r.x, r.y + 144.0, SMALL, GREY, false);
             None
         }
         Panel::Flying => {
             if let Some(f) = &case.flight {
                 let c = case.game.country(f.to);
-                ui.text(&format!("Flying to {}…", c.city), r.x, r.y + 14.0, BIG, PAPER, true);
+                let to = c.city();
+                ui.text(&tr(format!("Flying to {to}…"), format!("Volando a {to}…")), r.x, r.y + 14.0, BIG, PAPER, true);
                 let hours = flight_hours(case.game.country(f.from), c);
-                ui.text(&format!("{hours} hours in the air."), r.x, r.y + 34.0, SMALL, GREY, false);
+                ui.text(&tr(format!("{hours} hours in the air."), format!("{hours} horas de vuelo.")), r.x, r.y + 34.0, SMALL, GREY, false);
             }
             None
         }
@@ -1543,17 +1617,17 @@ fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Opti
             crime_computer(ui, case, r, editing)
         }
         Panel::Help => {
-            ui.text("HOW TO PLAY", r.x, r.y + 14.0, BIG, YELLOW, true);
+            ui.text(tr("HOW TO PLAY", "CÓMO JUGAR"), r.x, r.y + 14.0, BIG, YELLOW, true);
             page(ui, Rect::new(r.x, r.y + 22.0, r.w, r.h - 46.0), &help_paras(), &mut case.page_scroll);
-            let back = ui.option(row(r.h - 20.0), "Back to the notes", "", true);
+            let back = ui.option(row(r.h - 20.0), tr("Back to the notes", "Volver a las notas"), "", true);
             (back || ui.key(KeyCode::Escape)).then_some(Action::Show(Panel::Notes))
         }
         Panel::GiveUp => {
-            ui.text("Give up this case?", r.x, r.y + 14.0, BIG, YELLOW, true);
-            if ui.option(row(28.0), "Yes, give up", "", true) {
+            ui.text(tr("Give up this case?", "¿Abandonar este caso?"), r.x, r.y + 14.0, BIG, YELLOW, true);
+            if ui.option(row(28.0), tr("Yes, give up", "Sí, abandonar"), "", true) {
                 return Some(Action::ConfirmGiveUp);
             }
-            let no = ui.option(row(52.0), "No, keep going", "", true);
+            let no = ui.option(row(52.0), tr("No, keep going", "No, seguir"), "", true);
             (no || ui.key(KeyCode::Escape)).then_some(Action::Show(Panel::Notes))
         }
     }
@@ -1568,15 +1642,20 @@ const CHASE_SECONDS: f64 = 17.6;
 const SUSPECT_AT: f64 = 1.6;
 const POLICE_AT: f64 = 14.5;
 
-fn chase(ui: &Ui, cast: &Cast, r: Rect, t: f64) {
+fn chase(ui: &Ui, cast: &Cast, r: Rect, t: f64, female: bool) {
     cast.suspect.draw(r, t - SUSPECT_AT);
     // Low in the panel, as in the original, which wiped the lines one at a time.
     let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h * 0.73 - 5.0);
+    let (first, second) = match (lang(), female) {
+        (Lang::En, _) => ("There goes", "the suspect!"),
+        (Lang::Es, false) => ("¡Ahí va", "el sospechoso!"),
+        (Lang::Es, true) => ("¡Ahí va", "la sospechosa!"),
+    };
     if (5.7..9.8).contains(&t) {
-        ui.text_centred("There goes", cx, cy, BIG, PAPER, true);
+        ui.text_centred(first, cx, cy, BIG, PAPER, true);
     }
     if (5.7..10.6).contains(&t) {
-        ui.text_centred("the suspect!", cx, cy + 19.0, BIG, PAPER, true);
+        ui.text_centred(second, cx, cy + 19.0, BIG, PAPER, true);
     }
     cast.police.draw(r, t - POLICE_AT);
 }
@@ -1765,14 +1844,15 @@ fn paragraphs(ui: &Ui, r: Rect, lines: &[Line], budget: usize) -> bool {
 
 fn notes_panel(ui: &mut Ui, case: &mut Case, r: Rect, sounds: &mut Option<Sounds>) -> Option<Action> {
     let game = &case.game;
-    ui.text("CASE NOTES", r.x, r.y + 14.0, BIG, YELLOW, true);
+    ui.text(tr("CASE NOTES", "NOTAS DEL CASO"), r.x, r.y + 14.0, BIG, YELLOW, true);
     let left = (game.deadline - game.t).max(0);
-    let deadline = format!("Deadline {} ({left} hours left)", clock_text(game.deadline));
+    let due = clock_text(game.deadline);
+    let deadline = tr(format!("Deadline {due} ({left} hours left)"), format!("Vence el {due} ({left} h)"));
     ui.text(&deadline, r.x, r.y + 30.0, SMALL, if left <= 12 { RED } else { PAPER }, false);
-    let w = ui.text("Warrant: ", r.x, r.y + 44.0, SMALL, GREY, false);
+    let w = ui.text(tr("Warrant: ", "Orden: "), r.x, r.y + 44.0, SMALL, GREY, false);
     match game.warrant_for {
         Some(s) => ui.text(&game.data.suspects[s].name, r.x + w, r.y + 44.0, SMALL, LIME, true),
-        None => ui.text("none", r.x + w, r.y + 44.0, SMALL, GREY, false),
+        None => ui.text(tr("none", "ninguna"), r.x + w, r.y + 44.0, SMALL, GREY, false),
     };
 
     // The log, newest at the bottom; the mouse wheel scrolls back.
@@ -1801,17 +1881,17 @@ fn notes_panel(ui: &mut Ui, case: &mut Case, r: Rect, sounds: &mut Option<Sounds
         y -= line_height(SMALL);
     }
     if case.notes_scroll > 0 {
-        let hint = "scroll down for newer";
+        let hint = tr("scroll down for newer", "bajá para ver lo nuevo");
         ui.text(hint, r.x + r.w - ui.width(hint, SMALL, false), r.y + 14.0, SMALL, GREY, false);
     }
     fill(Rect::new(r.x, log.y + log.h, r.w, 1.0), DARK);
 
     let footer = r.y + r.h - 20.0;
-    if ui.option(Rect::new(r.x, footer, 124.0, 20.0), "How to play", "", true) {
+    if ui.option(Rect::new(r.x, footer, 124.0, 20.0), tr("How to play", "Cómo jugar"), "", true) {
         return Some(Action::Show(Panel::Help));
     }
     sound_toggle(ui, Rect::new(r.x + 130.0, footer, 112.0, 20.0), sounds);
-    if ui.option(Rect::new(r.x + r.w - 76.0, footer, 76.0, 20.0), "Give up", "", true) {
+    if ui.option(Rect::new(r.x + r.w - 82.0, footer, 82.0, 20.0), tr("Give up", "Rendirse"), "", true) {
         return Some(Action::Show(Panel::GiveUp));
     }
     None
@@ -1843,7 +1923,8 @@ fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Option<usize>
         for (i, (key, label, values)) in fields.iter().enumerate() {
             let row = Rect::new(s.x, s.y + i as f32 * row_h, s.w, row_h);
             let value = value_of(case, key).unwrap_or_default();
-            if screen_row(ui, row, &format!("{}:", label.to_uppercase()), &value, false) {
+            let shown = if value.is_empty() { String::new() } else { case.game.shown(key, &value) };
+            if screen_row(ui, row, &format!("{}:", label.to_uppercase()), &shown, false) {
                 return Some(Action::Show(Panel::Crime { editing: Some(i) }));
             }
             // The mouse wheel steps through the values without opening the list.
@@ -1858,15 +1939,15 @@ fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Option<usize>
         }
         let y = s.y + (fields.len() as f32 + 0.25) * row_h;
         let row = |n: f32| Rect::new(s.x, y + n * row_h, s.w, row_h);
-        if screen_row(ui, row(0.0), &format!("COMPUTE ({WARRANT_HOURS} H)"), "", false) {
+        if screen_row(ui, row(0.0), &tr(format!("COMPUTE ({WARRANT_HOURS} H)"), format!("COMPUTAR ({WARRANT_HOURS} H)")), "", false) {
             return Some(Action::Compute);
         }
-        if screen_row(ui, row(1.0), "CLEAR", "", false) {
+        if screen_row(ui, row(1.0), tr("CLEAR", "BORRAR"), "", false) {
             for entry in case.game.warrant.iter_mut() {
                 entry.1 = None;
             }
         }
-        if screen_row(ui, row(2.0), "DOSSIERS", "", false) {
+        if screen_row(ui, row(2.0), tr("DOSSIERS", "FICHAS"), "", false) {
             return Some(Action::OpenDossier(0));
         }
         return None;
@@ -1880,8 +1961,8 @@ fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Option<usize>
     let row = |n: usize| Rect::new(s.x, s.y + n as f32 * row_h, s.w, row_h);
     let size = if row_h >= 16.0 { BIG } else { SMALL };
     ui.text(&format!("{}:", label.to_uppercase()), s.x + 2.0, row(0).y + row_h - 3.0, size, YELLOW, true);
-    let mut choices: Vec<(String, Option<String>)> = vec![("DON'T KNOW".to_string(), None)];
-    choices.extend(values.iter().map(|v| (v.clone(), Some(v.clone()))));
+    let mut choices: Vec<(String, Option<String>)> = vec![(tr("DON'T KNOW", "NO SÉ").to_string(), None)];
+    choices.extend(values.iter().map(|v| (case.game.shown(key, v), Some(v.clone()))));
     for (i, (text, value)) in choices.iter().enumerate() {
         let chosen = match (value, &current) {
             (Some(v), Some(c)) => game::same(v, c),
@@ -1895,7 +1976,7 @@ fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Option<usize>
             return Some(Action::Show(Panel::Crime { editing: None }));
         }
     }
-    let back = screen_row(ui, row(choices.len() + 1), "BACK", "", false);
+    let back = screen_row(ui, row(choices.len() + 1), tr("BACK", "VOLVER"), "", false);
     (back || ui.key(KeyCode::Escape)).then_some(Action::Show(Panel::Crime { editing: None }))
 }
 
@@ -2006,10 +2087,9 @@ fn dossier_window(ui: &mut Ui, files: &Files, i: usize) -> Option<Action> {
     let params = DrawTextureParams { dest_size: Some(vec2(132.0, 192.0)), ..Default::default() };
     draw_texture_ex(&files.mugshots[i], photo.x + 6.0, photo.y + 6.0, WHITE, params);
 
-    let sex = if s.sex == "female" { "Female" } else { "Male" };
-    let mut facts: Vec<(&str, &str)> = vec![("Name", &s.name), ("Sex", sex)];
+    let mut facts: Vec<(&str, &str)> = vec![(tr("Name", "Nombre"), &s.name), (tr("Sex", "Sexo"), data::sex_shown(&s.sex))];
     for t in &files.data.traits {
-        facts.push((&t.label, s.get(&t.key)));
+        facts.push((t.label(), s.shown(t)));
     }
     let right = r.x + r.w - 14.0;
     let (x, mut y) = if tall { (r.x + 14.0, photo.y + photo.h + 24.0) } else { (photo.x + photo.w + 14.0, r.y + 30.0) };
@@ -2018,13 +2098,15 @@ fn dossier_window(ui: &mut Ui, files: &Files, i: usize) -> Option<Action> {
     }
     if let Some(bio) = &s.bio {
         let y = if tall { y + 2.0 } else { (y + 2.0).max(photo.y + photo.h + 20.0) };
-        labelled(ui, "Notes", bio, (r.x + 14.0, right), y);
+        labelled(ui, tr("Notes", "Notas"), bio.get(), (r.x + 14.0, right), y);
     }
     // Phones have no arrow keys; the Dossiers menu still opens any file.
-    let hint = if tall {
-        format!("File {} of {count}. Tap to close.", i + 1)
-    } else {
-        format!("File {} of {count}. Left and right arrows: other files. Click: close.", i + 1)
+    let n = i + 1;
+    let hint = match (tall, lang()) {
+        (true, Lang::En) => format!("File {n} of {count}. Tap to close."),
+        (false, Lang::En) => format!("File {n} of {count}. Left and right arrows: other files. Click: close."),
+        (true, Lang::Es) => format!("Ficha {n} de {count}. Tocá para cerrar."),
+        (false, Lang::Es) => format!("Ficha {n} de {count}. Flechas: otras fichas. Clic: cerrar."),
     };
     ui.text_centred(&hint, r.x + r.w / 2.0, r.y + r.h - 8.0, SMALL, DARK, false);
 
@@ -2094,7 +2176,7 @@ fn roster_window(ui: &mut Ui, roster: &mut Roster, me: &str) -> Option<Action> {
     outline(Rect::new(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0), INK);
 
     // The title between two blue bars.
-    let title = "Detective Roster";
+    let title = tr("Detective Roster", "Lista de detectives");
     let tw = ui.width(title, BIG, true);
     let bar = Rect::new(r.x + 8.0, r.y + 9.0, r.w - 16.0, 16.0);
     let gap = Rect::new(bar.x + (bar.w - tw) / 2.0 - 8.0, bar.y, tw + 16.0, bar.h);
@@ -2109,18 +2191,22 @@ fn roster_window(ui: &mut Ui, roster: &mut Roster, me: &str) -> Option<Action> {
     let name_x = rows_box.x + 12.0;
     let rank_cx = rows_box.x + rows_box.w * if TALL_NOW.get() { 0.6 } else { 0.62 };
     let arrests_cx = rows_box.x + rows_box.w * if TALL_NOW.get() { 0.9 } else { 0.88 };
-    ui.text("Name", name_x, list_box.y - 7.0, BIG, INK, true);
-    ui.text_centred("Rank", rank_cx, list_box.y - 7.0, BIG, INK, true);
-    ui.text_centred("Arrests", arrests_cx, list_box.y - 7.0, BIG, INK, true);
+    ui.text(tr("Name", "Nombre"), name_x, list_box.y - 7.0, BIG, INK, true);
+    ui.text_centred(tr("Rank", "Rango"), rank_cx, list_box.y - 7.0, BIG, INK, true);
+    ui.text_centred(tr("Arrests", "Arrestos"), arrests_cx, list_box.y - 7.0, BIG, INK, true);
     outline(list_box, INK);
 
     let shown = ((rows_box.h - 4.0) / ROSTER_ROW_H).floor().max(1.0) as usize;
     let total = roster.list.as_ref().map_or(0, Vec::len);
     let most = total.saturating_sub(shown);
     match &roster.list {
-        None => ui.text_centred("Checking the bureau's records…", rows_box.x + rows_box.w / 2.0, rows_box.y + 30.0, SMALL, DARK, false),
+        None => {
+            let checking = tr("Checking the bureau's records…", "Revisando los archivos de la agencia…");
+            ui.text_centred(checking, rows_box.x + rows_box.w / 2.0, rows_box.y + 30.0, SMALL, DARK, false)
+        }
         Some(list) if list.is_empty() => {
-            ui.text_centred("No detectives on file yet.", rows_box.x + rows_box.w / 2.0, rows_box.y + 30.0, SMALL, DARK, false)
+            let none = tr("No detectives on file yet.", "Todavía no hay detectives.");
+            ui.text_centred(none, rows_box.x + rows_box.w / 2.0, rows_box.y + 30.0, SMALL, DARK, false)
         }
         Some(list) => {
             let me = carmen_shared::key(me);
@@ -2138,7 +2224,7 @@ fn roster_window(ui: &mut Ui, roster: &mut Roster, me: &str) -> Option<Action> {
                     name.replace_range(..first.len_utf8(), &first.to_uppercase().to_string());
                 }
                 ui.mono(&name, name_x, base, ink);
-                let rank = RANKS[rank_for(d.arrests)].name;
+                let rank = RANKS[rank_for(d.arrests)].label();
                 ui.mono(rank, rank_cx - rank.chars().count() as f32 * MONO_W / 2.0, base, ink);
                 let n = d.arrests.to_string();
                 ui.mono(&n, arrests_cx - n.chars().count() as f32 * MONO_W / 2.0, base, ink);
@@ -2182,7 +2268,8 @@ fn roster_window(ui: &mut Ui, roster: &mut Roster, me: &str) -> Option<Action> {
     roster.top = (roster.top as i32 + step).clamp(0, most as i32) as usize;
 
     if roster.offline {
-        let note = "Bureau unreachable: this device's records only.";
+        let note =
+            tr("Bureau unreachable: this device's records only.", "Sin conexión con la agencia: solo los datos de este dispositivo.");
         ui.text(&ui.fit(note, SMALL, false, r.w - 150.0), r.x + 12.0, r.y + r.h - 16.0, SMALL, DARK, false);
     }
     let close_r = Rect::new(r.x + r.w - 120.0, r.y + r.h - 32.0, 108.0, 22.0);
@@ -2199,9 +2286,10 @@ fn close_button(ui: &mut Ui, close_r: Rect) -> bool {
     outline(close_r, INK);
     // "Close" and its key in inverse, like the original's buttons.
     let (ink, paper) = if hover { (YELLOW, INK) } else { (INK, YELLOW) };
-    let (cw, kw) = (ui.width("Close", BIG, true), ui.width("Esc", SMALL, true) + 6.0);
+    let close = tr("Close", "Cerrar");
+    let (cw, kw) = (ui.width(close, BIG, true), ui.width("Esc", SMALL, true) + 6.0);
     let x = close_r.x + (close_r.w - cw - 6.0 - kw) / 2.0;
-    ui.text("Close", x, close_r.y + 16.0, BIG, ink, true);
+    ui.text(close, x, close_r.y + 16.0, BIG, ink, true);
     let key = Rect::new(x + cw + 6.0, close_r.y + 5.0, kw, 13.0);
     fill(key, ink);
     ui.text("Esc", key.x + 3.0, key.y + 10.0, SMALL, paper, true);
@@ -2211,15 +2299,21 @@ fn close_button(ui: &mut Ui, close_r: Rect) -> bool {
 const ABOUT: &str = "This is a recreation of the 1990s Where in the World is Carmen Sandiego? from Brøderbund Software, \
                      remade in Rust and compiled to WebAssembly. The suspects are friends and family, and this was a project \
                      with the sole intention of having fun.";
-const LINKS: [(&str, &str, &str); 2] =
-    [("Code", "github.com/jonorl/carmen", "https://github.com/jonorl/carmen"), ("Website", "jonathan-orlowski.dev", "https://jonathan-orlowski.dev")];
+const ABOUT_ES: &str = "Esta es una recreación del clásico de los 90 ¿Dónde en el mundo está Carmen Sandiego?, de Brøderbund \
+                        Software, rehecho en Rust y compilado a WebAssembly. Los sospechosos son amigos y familia, y este \
+                        proyecto se hizo con el único fin de divertirse.";
+/// (label in English, in Spanish, as shown, address).
+const LINKS: [(&str, &str, &str, &str); 2] = [
+    ("Code", "Código", "github.com/jonorl/carmen", "https://github.com/jonorl/carmen"),
+    ("Website", "Sitio web", "jonathan-orlowski.dev", "https://jonathan-orlowski.dev"),
+];
 
 /// About the game, laid out like the original's: a white box with the title,
 /// a red rule, then what it is and where to find more.
 fn about_window(ui: &mut Ui) -> Option<Action> {
     let w = if TALL_NOW.get() { lay().w - 16.0 } else { 440.0 };
     let cols = ((w - 28.0) / MONO_W) as usize;
-    let rows = ui::wrap_cols(ABOUT, cols);
+    let rows = ui::wrap_cols(tr(ABOUT, ABOUT_ES), cols);
     let h = 44.0 + rows.len() as f32 * 17.0 + 12.0 + LINKS.len() as f32 * 19.0 + 44.0;
     let r = Rect::new(((lay().w - w) / 2.0).round(), ((lay().h - h) / 2.0).round(), w, h);
     fill(Rect::new(r.x + 5.0, r.y + 5.0, r.w, r.h), INK);
@@ -2228,7 +2322,7 @@ fn about_window(ui: &mut Ui) -> Option<Action> {
     outline(Rect::new(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0), INK);
 
     let x = r.x + 14.0;
-    ui.text(GAME_TITLE, x, r.y + 24.0, BIG, INK, true);
+    ui.text(game_title(), x, r.y + 24.0, BIG, INK, true);
     fill(Rect::new(x, r.y + 32.0, r.w - 28.0, 2.0), RED);
     let mut y = r.y + 52.0;
     for row in &rows {
@@ -2237,8 +2331,8 @@ fn about_window(ui: &mut Ui) -> Option<Action> {
     }
     y += 12.0;
     let mut action = None;
-    for (label, shown, url) in LINKS {
-        let lw = ui.text(&format!("{label}:"), x, y, BIG, INK, true) + 8.0;
+    for (en, es, shown, url) in LINKS {
+        let lw = ui.text(&format!("{}:", tr(en, es)), x, y, BIG, INK, true) + 8.0;
         let link = Rect::new(x + lw - 2.0, y - 14.0, shown.chars().count() as f32 * MONO_W + 4.0, 18.0);
         let hover = ui.hovered(link);
         if hover {
@@ -2291,17 +2385,35 @@ fn labelled(ui: &Ui, label: &str, value: &str, (x, right): (f32, f32), y: f32) -
 
 /// Where each menu's title sits in the bar.
 fn menu_titles(ui: &Ui) -> Vec<Rect> {
-    let mut x = 4.0;
-    MENUS
+    // Closer together on a phone, to leave room for the language toggle.
+    let (pad, gap) = if TALL_NOW.get() { (MENU_PAD_TALL, 0.0) } else { (MENU_PAD, 4.0) };
+    let mut x = 2.0;
+    menus()
         .iter()
         .map(|title| {
-            let w = ui.width(title, BIG, true) + 14.0;
+            let w = ui.width(title, BIG, true) + 2.0 * pad;
             let r = Rect::new(x, 0.0, w, MENU_H);
-            x += w + 4.0;
+            x += w + gap;
             r
         })
         .collect()
 }
+
+/// Where the language toggle's two halves sit, at the right of the menu bar.
+fn language_buttons(ui: &Ui) -> [(Lang, Rect); 2] {
+    let mut x = lay().w - 4.0;
+    [Lang::Es, Lang::En].map(|l| {
+        let w = ui.width(&l.code().to_uppercase(), SMALL, true) + 8.0;
+        x -= w;
+        let r = Rect::new(x, 1.0, w, MENU_H - 2.0);
+        x -= 2.0;
+        (l, r)
+    })
+}
+
+/// Space either side of a menu's title.
+const MENU_PAD: f32 = 7.0;
+const MENU_PAD_TALL: f32 = 4.0;
 
 impl App {
     /// The items in menu `m`: a label, and what choosing it does (None when
@@ -2310,19 +2422,21 @@ impl App {
         let in_case = matches!(self.screen, Screen::Case(_));
         match m {
             0 => {
-                let mut items =
-                    vec![("New case".to_string(), in_case.then_some(Action::NewCase)), ("How to play".to_string(), Some(Action::Help))];
-                items.push(("About".to_string(), Some(Action::About(true))));
+                let mut items = vec![
+                    (tr("New case", "Nuevo caso").to_string(), in_case.then_some(Action::NewCase)),
+                    (tr("How to play", "Cómo jugar").to_string(), Some(Action::Help)),
+                    (tr("About", "Acerca de").to_string(), Some(Action::About(true))),
+                ];
                 if CAN_QUIT {
-                    items.push(("Quit".to_string(), Some(Action::Quit)));
+                    items.push((tr("Quit", "Salir").to_string(), Some(Action::Quit)));
                 }
                 items
             }
             1 => match &self.sounds {
-                Some(s) => vec![(format!("Sound: {}", if s.on { "on" } else { "off" }), Some(Action::ToggleSound))],
-                None => vec![("Sound: unavailable".to_string(), None)],
+                Some(s) => vec![(sound_label(s.on).to_string(), Some(Action::ToggleSound))],
+                None => vec![(tr("Sound: unavailable", "Sonido: no disponible").to_string(), None)],
             },
-            2 => vec![("Detective roster".to_string(), Some(Action::OpenRoster))],
+            2 => vec![(tr("Detective roster", "Lista de detectives").to_string(), Some(Action::OpenRoster))],
             _ => self.data.suspects.iter().enumerate().map(|(i, s)| (s.name.clone(), Some(Action::OpenDossier(i)))).collect(),
         }
     }
@@ -2331,16 +2445,30 @@ impl App {
     fn menu_bar(&mut self, titles: &[Rect]) -> Option<Action> {
         let ui = &self.ui;
         fill(Rect::new(0.0, 0.0, lay().w, MENU_H), PAPER);
-        for (i, (title, r)) in MENUS.iter().zip(titles).enumerate() {
+        for (i, (title, r)) in menus().iter().zip(titles).enumerate() {
             let open = self.menu == Some(i);
             if open {
                 fill(*r, INK);
             }
             // The first letter in colour, like the original's keyboard shortcuts.
-            let (first, rest) = title.split_at(1);
-            let w = ui.text(first, r.x + 7.0, 13.0, BIG, if open { CYAN } else { RED }, true);
-            ui.text(rest, r.x + 7.0 + w - 1.0, 13.0, BIG, if open { PAPER } else { INK }, true);
+            let first_len = title.chars().next().map_or(0, char::len_utf8);
+            let (first, rest) = title.split_at(first_len);
+            let pad = if TALL_NOW.get() { MENU_PAD_TALL } else { MENU_PAD };
+            let w = ui.text(first, r.x + pad, 13.0, BIG, if open { CYAN } else { RED }, true);
+            ui.text(rest, r.x + pad + w - 1.0, 13.0, BIG, if open { PAPER } else { INK }, true);
         }
+        // The language toggle at the right-hand end: the one in use in
+        // inverse video. Its clicks are taken at the start of the frame.
+        for (l, r) in language_buttons(&self.ui) {
+            let current = lang() == l;
+            if current {
+                fill(r, INK);
+            } else {
+                outline(r, INK);
+            }
+            self.ui.text_centred(&l.code().to_uppercase(), r.x + r.w / 2.0, 12.0, SMALL, if current { PAPER } else { INK }, true);
+        }
+        let mut chosen = None;
         let m = self.menu?;
         let items = self.menu_items(m);
         let width = items.iter().map(|(label, _)| self.ui.width(label, BIG, true)).fold(0.0, f32::max) + 24.0;
@@ -2351,7 +2479,6 @@ impl App {
         fill(r, PAPER);
         outline(r, INK);
         outline(Rect::new(r.x + 1.0, r.y + 1.0, r.w - 2.0, r.h - 2.0), INK);
-        let mut chosen = None;
         for (k, (label, action)) in items.into_iter().enumerate() {
             let row = Rect::new(r.x + 3.0, r.y + 3.0 + k as f32 * 19.0, r.w - 6.0, 19.0);
             let active = action.is_some();
@@ -2383,6 +2510,22 @@ impl App {
 fn help_paras() -> Vec<Para> {
     let body = |t: String| para(t, SMALL, false, PAPER, 6.0);
     let head = |t: &str| para(t, BIG, true, YELLOW, 0.0);
+    if lang() == Lang::Es {
+        return vec![
+            body("Alguien de la familia robó un tesoro y anda saltando por el mundo. Seguí el rastro hasta el escondite y hacé el arresto antes de que venza el plazo.".to_string()),
+            body("Cada arresto te acerca a un ascenso, de Aprendiz a Supersabueso, y los casos de cada rango son más difíciles. Tus arrestos se guardan con tu nombre.".to_string()),
+            head("Investigar"),
+            body(format!("La lupa abre una ventana con los tres lugares de la ciudad, cada uno con un testigo; los que ya visitaste se ven en gris. Si vas por buen camino, los testigos dan pistas sobre el próximo país (banderas, monedas, monumentos, comidas, idiomas...) y a veces describen a quien robó. En una ciudad equivocada nadie vio nada, así que volvé. Cada entrevista lleva {INTERVIEW_HOURS} horas.")),
+            head("Viajar"),
+            body("El avión. De cada ciudad salen cuatro vuelos; elegí uno de la lista o hacé clic en su punto del mapa. Los vuelos más largos llevan más tiempo.".to_string()),
+            head("Computadora"),
+            body(format!("Cargá lo que sabés de quien robó y computá ({WARRANT_HOURS} horas). Cuando queda una sola persona, tenés la orden de arresto. Las fichas te ayudan a relacionar pistas con personas.")),
+            head("El escondite"),
+            body("Cuando los testigos dicen que sigue en la ciudad, estás cerca. Seguí investigando para hacer el arresto, pero necesitás una orden de arresto contra la persona correcta o se te escapa.".to_string()),
+            head("Notas y tiempo"),
+            body("La libreta guarda todo lo que te dijeron los testigos. El reloj arranca el lunes a las 9 de la mañana y dormís de 11 de la noche a 7 de la mañana. Hacé clic o apretá una tecla para saltear lo que se está escribiendo.".to_string()),
+        ];
+    }
     vec![
         body("A family member has stolen a treasure and is hopping around the world. Follow the trail to their hideout and arrest them before the deadline.".to_string()),
         body("Arrests get you promoted, from Rookie up to Super Sleuth, and each rank's cases are harder. Your arrests are saved under your name.".to_string()),

@@ -4,6 +4,8 @@
 
 use macroquad::prelude::*;
 
+use crate::lang::tr;
+
 pub const fn hex(v: u32) -> Color {
     Color::new(((v >> 16) & 255) as f32 / 255.0, ((v >> 8) & 255) as f32 / 255.0, (v & 255) as f32 / 255.0, 1.0)
 }
@@ -298,10 +300,10 @@ pub enum Icon {
 impl Icon {
     pub fn name(self) -> &'static str {
         match self {
-            Icon::Notes => "Case notes",
-            Icon::Depart => "Depart by plane",
-            Icon::Investigate => "Investigate",
-            Icon::Crime => "Crime computer",
+            Icon::Notes => tr("Case notes", "Notas del caso"),
+            Icon::Depart => tr("Depart by plane", "Viajar en avión"),
+            Icon::Investigate => tr("Investigate", "Investigar"),
+            Icon::Crime => tr("Crime computer", "Computadora"),
         }
     }
 }
@@ -311,7 +313,7 @@ fn draw_icon(ui: &Ui, r: Rect, icon: Icon, active: bool) {
     let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h / 2.0);
     match icon {
         Icon::Notes => {
-            ui.text_centred("NOTES", cx, r.y + 12.0, SMALL, ink, true);
+            ui.text_centred(tr("NOTES", "NOTAS"), cx, r.y + 12.0, SMALL, ink, true);
             let page = Rect::new(cx - 13.0, r.y + 16.0, 26.0, 24.0);
             fill(page, PAPER);
             outline(page, ink);
@@ -323,7 +325,7 @@ fn draw_icon(ui: &Ui, r: Rect, icon: Icon, active: bool) {
             }
         }
         Icon::Depart => {
-            ui.text_centred("DEPART", cx, r.y + 12.0, SMALL, ink, true);
+            ui.text_centred(tr("DEPART", "VIAJAR"), cx, r.y + 12.0, SMALL, ink, true);
             // A plane seen head-on: wings, engines, fuselage and tail fin.
             let y = cy + 8.0;
             fill(Rect::new(cx - 26.0, y, 52.0, 2.0), ink);
@@ -346,7 +348,7 @@ fn draw_icon(ui: &Ui, r: Rect, icon: Icon, active: bool) {
             let screen = Rect::new(cx - 26.0, r.y + 4.0, 52.0, 26.0);
             fill(screen, DARK);
             fill(Rect::new(screen.x + 3.0, screen.y + 3.0, screen.w - 6.0, screen.h - 6.0), if active { BLUE } else { GREY });
-            ui.text_centred("CRIME", cx, screen.y + 18.0, SMALL, PAPER, true);
+            ui.text_centred(tr("CRIME", "CRIMEN"), cx, screen.y + 18.0, SMALL, PAPER, true);
             fill(Rect::new(cx - 30.0, r.y + 33.0, 60.0, 7.0), ink);
             for i in 0..9 {
                 fill(Rect::new(cx - 27.0 + i as f32 * 6.0, r.y + 35.0, 4.0, 1.0), GREY);

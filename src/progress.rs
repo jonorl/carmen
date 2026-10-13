@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 use carmen_shared::{Detective, Tally};
 
 use crate::net::{self, Request};
+use crate::storage;
 
 /// The server's address, from CARMEN_API when the game was built (default:
 /// the live one). Built with CARMEN_API empty, it keeps to this device.
@@ -26,6 +27,9 @@ fn server() -> Option<&'static str> {
 pub fn roster_request() -> Option<Request> {
     server().map(|server| Request::get(&format!("{server}/detectives")))
 }
+
+/// What it's saved under (see `storage`).
+const STORE: &str = "progress";
 
 /// Arrests by detective, keyed by name without regard to case or spacing.
 pub struct Progress {
@@ -51,7 +55,7 @@ fn key(name: &str) -> String {
 impl Progress {
     /// What was saved, or nobody's arrests if nothing (or nothing readable) was.
     pub fn load() -> Progress {
-        Progress::from_json(&store::read().unwrap_or_default())
+        Progress::from_json(&storage::read(STORE).unwrap_or_default())
     }
 
     fn from_json(text: &str) -> Progress {
@@ -79,7 +83,7 @@ impl Progress {
         let n = self.arrests.entry(key(name)).or_insert(0);
         *n += 1;
         let n = *n;
-        store::write(&self.to_json());
+        storage::write(STORE, &self.to_json());
         self.send(name, false);
         n
     }
@@ -133,7 +137,7 @@ impl Progress {
                 continue;
             };
             if self.raise(&name, detective.arrests) {
-                store::write(&self.to_json());
+                storage::write(STORE, &self.to_json());
             }
             // Arrests made here while the server was out of reach.
             if lookup && self.arrests(&name) > detective.arrests {
@@ -148,69 +152,6 @@ impl Progress {
         let higher = arrests > *n;
         *n = (*n).max(arrests);
         higher
-    }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-mod store {
-    use std::path::PathBuf;
-
-    /// Where saved data belongs on this system.
-    fn path() -> Option<PathBuf> {
-        let home = || std::env::var_os("HOME").map(PathBuf::from);
-        let base = if cfg!(target_os = "windows") {
-            std::env::var_os("APPDATA").map(PathBuf::from)
-        } else if cfg!(target_os = "macos") {
-            home().map(|h| h.join("Library/Application Support"))
-        } else {
-            std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| home().map(|h| h.join(".local/share")))
-        };
-        Some(base?.join("where-in-the-world").join("progress.json"))
-    }
-
-    pub fn read() -> Option<String> {
-        std::fs::read_to_string(path()?).ok()
-    }
-
-    pub fn write(text: &str) {
-        let Some(path) = path() else { return };
-        // Write beside it and rename, so a crash can't leave half a file.
-        let temp = path.with_extension("json.tmp");
-        let saved = path.parent().map_or(Ok(()), std::fs::create_dir_all).and_then(|_| std::fs::write(&temp, text));
-        if saved.and_then(|_| std::fs::rename(&temp, &path)).is_err() {
-            eprintln!("Couldn't save progress to {}.", path.display());
-        }
-    }
-}
-
-#[cfg(target_arch = "wasm32")]
-mod store {
-    const KEY: &str = "where-in-the-world-progress";
-
-    unsafe extern "C" {
-        /// Copies the stored text into `out` and returns its length, or -1
-        /// if there's none (or it doesn't fit).
-        fn carmen_storage_get(key: *const u8, key_len: usize, out: *mut u8, cap: usize) -> i32;
-        fn carmen_storage_set(key: *const u8, key_len: usize, value: *const u8, len: usize);
-    }
-
-    /// Lets the JS loader check this plugin's version against the page's.
-    #[unsafe(no_mangle)]
-    pub extern "C" fn carmen_storage_crate_version() -> u32 {
-        1
-    }
-
-    pub fn read() -> Option<String> {
-        let mut buf = vec![0u8; 64 * 1024];
-        // SAFETY: the plugin writes at most `cap` bytes into `buf`, and reads `KEY` only.
-        let len = unsafe { carmen_storage_get(KEY.as_ptr(), KEY.len(), buf.as_mut_ptr(), buf.len()) };
-        buf.truncate(usize::try_from(len).ok()?);
-        String::from_utf8(buf).ok()
-    }
-
-    pub fn write(text: &str) {
-        // SAFETY: the plugin only reads the two buffers, for the lengths given.
-        unsafe { carmen_storage_set(KEY.as_ptr(), KEY.len(), text.as_ptr(), text.len()) }
     }
 }
 
