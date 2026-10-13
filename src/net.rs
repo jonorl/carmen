@@ -27,6 +27,29 @@ impl Request {
     }
 }
 
+/// Open `url` in the browser: a new tab on the web, the default browser on
+/// desktops.
+pub fn open_url(url: &str) {
+    #[cfg(target_arch = "wasm32")]
+    // SAFETY: the plugin only reads the buffer, for the length given.
+    unsafe {
+        imp::carmen_open_url(url.as_ptr(), url.len())
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    {
+        let (program, args): (&str, &[&str]) = if cfg!(target_os = "windows") {
+            ("cmd", &["/C", "start", ""])
+        } else if cfg!(target_os = "macos") {
+            ("open", &[])
+        } else {
+            ("xdg-open", &[])
+        };
+        if std::process::Command::new(program).args(args).arg(url).spawn().is_err() {
+            eprintln!("Couldn't open {url}.");
+        }
+    }
+}
+
 /// `text` made safe for a URL path.
 pub fn escape(text: &str) -> String {
     text.bytes()
@@ -82,6 +105,7 @@ mod imp {
         /// Copies the finished answer into `out` and forgets the request.
         fn carmen_http_take(id: u32, out: *mut u8, cap: usize) -> i32;
         fn carmen_http_forget(id: u32);
+        pub fn carmen_open_url(url: *const u8, len: usize);
     }
 
     /// Lets the JS loader check this plugin's version against the page's.

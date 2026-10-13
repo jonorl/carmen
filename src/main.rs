@@ -493,6 +493,8 @@ enum Action {
     CloseDossier,
     OpenRoster,
     CloseRoster,
+    About(bool),
+    OpenLink(&'static str),
 }
 
 /// The menus across the top of the screen.
@@ -517,6 +519,8 @@ struct App {
     dossier: Option<usize>,
     /// The detective roster, when it's open on top of the screen.
     roster: Option<Roster>,
+    /// Whether the About window is open on top of the screen.
+    about: bool,
     /// Sounds decode in the background (asynchronously in browsers), so the
     /// game starts straight away and the typing goes quiet until they're ready.
     loading_sounds: Option<Coroutine<Option<Sounds>>>,
@@ -552,6 +556,7 @@ async fn run(data: Rc<Data>, args: Args) {
         menu: None,
         dossier: None,
         roster: None,
+        about: false,
         loading_sounds: Some(start_coroutine(Sounds::load())),
         scenes: HashMap::new(),
         // std's SystemTime panics in the browser; miniquad's clock works on both.
@@ -624,8 +629,8 @@ impl App {
             }
         }
         self.progress.poll();
-        // The screen ignores input under an open menu, dossier or roster.
-        self.ui.enabled = self.menu.is_none() && self.dossier.is_none() && self.roster.is_none();
+        // The screen ignores input under an open menu or window.
+        self.ui.enabled = self.menu.is_none() && self.dossier.is_none() && self.roster.is_none() && !self.about;
         let mut action = match &mut self.screen {
             Screen::Hq(hq) => hq_screen(&mut self.ui, hq, &mut self.name, &mut self.progress, self.rank_override, &mut self.sounds),
             Screen::Case(case) if case.computing.is_some_and(|t| get_time() - t >= sound::COMPUTE_SECONDS) => Some(Action::Computed),
@@ -658,6 +663,11 @@ impl App {
             if let Some(chosen) = roster_window(&mut self.ui, roster, &self.name) {
                 action = Some(chosen);
             }
+        }
+        if self.about
+            && let Some(chosen) = about_window(&mut self.ui)
+        {
+            action = Some(chosen);
         }
         self.ui.enabled = true;
         if let Some(chosen) = self.menu_bar(&titles) {
@@ -737,6 +747,11 @@ impl App {
                 self.roster = Some(Roster::open());
             }
             Action::CloseRoster => self.roster = None,
+            Action::About(open) => {
+                (self.dossier, self.roster) = (None, None);
+                self.about = open;
+            }
+            Action::OpenLink(url) => net::open_url(url),
             Action::EndChase => {
                 if let Some(s) = &mut self.sounds {
                     s.stop_chase();
@@ -2171,6 +2186,14 @@ fn roster_window(ui: &mut Ui, roster: &mut Roster, me: &str) -> Option<Action> {
         ui.text(&ui.fit(note, SMALL, false, r.w - 150.0), r.x + 12.0, r.y + r.h - 16.0, SMALL, DARK, false);
     }
     let close_r = Rect::new(r.x + r.w - 120.0, r.y + r.h - 32.0, 108.0, 22.0);
+    let outside = !ui.hovered(r) && ui.take_click(Rect::new(0.0, MENU_H, lay().w, lay().h));
+    let close = close_button(ui, close_r) || outside || ui.key(KeyCode::Escape) || ui.key(KeyCode::Enter);
+    close.then_some(Action::CloseRoster)
+}
+
+/// A yellow button reading "Close" with its key, Esc, in inverse, like the
+/// original's buttons. Whether it was clicked.
+fn close_button(ui: &mut Ui, close_r: Rect) -> bool {
     let hover = ui.hovered(close_r);
     fill(close_r, if hover { INK } else { YELLOW });
     outline(close_r, INK);
@@ -2182,9 +2205,58 @@ fn roster_window(ui: &mut Ui, roster: &mut Roster, me: &str) -> Option<Action> {
     let key = Rect::new(x + cw + 6.0, close_r.y + 5.0, kw, 13.0);
     fill(key, ink);
     ui.text("Esc", key.x + 3.0, key.y + 10.0, SMALL, paper, true);
+    ui.take_click(close_r)
+}
+
+const ABOUT: &str = "This is a recreation of the 1990s Where in the World is Carmen Sandiego? from Brøderbund Software, \
+                     remade in Rust and compiled to WebAssembly. The suspects are friends and family, and this was a project \
+                     with the sole intention of having fun.";
+const LINKS: [(&str, &str, &str); 2] =
+    [("Code", "github.com/jonorl/carmen", "https://github.com/jonorl/carmen"), ("Website", "jonathan-orlowski.dev", "https://jonathan-orlowski.dev")];
+
+/// About the game, laid out like the original's: a white box with the title,
+/// a red rule, then what it is and where to find more.
+fn about_window(ui: &mut Ui) -> Option<Action> {
+    let w = if TALL_NOW.get() { lay().w - 16.0 } else { 440.0 };
+    let cols = ((w - 28.0) / MONO_W) as usize;
+    let rows = ui::wrap_cols(ABOUT, cols);
+    let h = 44.0 + rows.len() as f32 * 17.0 + 12.0 + LINKS.len() as f32 * 19.0 + 44.0;
+    let r = Rect::new(((lay().w - w) / 2.0).round(), ((lay().h - h) / 2.0).round(), w, h);
+    fill(Rect::new(r.x + 5.0, r.y + 5.0, r.w, r.h), INK);
+    fill(r, PAPER);
+    outline(r, INK);
+    outline(Rect::new(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0), INK);
+
+    let x = r.x + 14.0;
+    ui.text(GAME_TITLE, x, r.y + 24.0, BIG, INK, true);
+    fill(Rect::new(x, r.y + 32.0, r.w - 28.0, 2.0), RED);
+    let mut y = r.y + 52.0;
+    for row in &rows {
+        ui.mono(row, x, y, INK);
+        y += 17.0;
+    }
+    y += 12.0;
+    let mut action = None;
+    for (label, shown, url) in LINKS {
+        let lw = ui.text(&format!("{label}:"), x, y, BIG, INK, true) + 8.0;
+        let link = Rect::new(x + lw - 2.0, y - 14.0, shown.chars().count() as f32 * MONO_W + 4.0, 18.0);
+        let hover = ui.hovered(link);
+        if hover {
+            fill(link, NAVY);
+        }
+        ui.mono(shown, x + lw, y, if hover { PAPER } else { NAVY });
+        fill(Rect::new(x + lw, y + 2.0, link.w - 4.0, 1.0), if hover { PAPER } else { NAVY });
+        if ui.take_click(link) {
+            action = Some(Action::OpenLink(url));
+        }
+        y += 19.0;
+    }
+    let close_r = Rect::new(r.x + r.w - 120.0, r.y + r.h - 32.0, 108.0, 22.0);
     let outside = !ui.hovered(r) && ui.take_click(Rect::new(0.0, MENU_H, lay().w, lay().h));
-    let close = ui.take_click(close_r) || outside || ui.key(KeyCode::Escape) || ui.key(KeyCode::Enter);
-    close.then_some(Action::CloseRoster)
+    if close_button(ui, close_r) || outside || ui.key(KeyCode::Escape) || ui.key(KeyCode::Enter) {
+        action = Some(Action::About(false));
+    }
+    action
 }
 
 /// "Label: answer" with the label in bold and the answer typewritten,
@@ -2240,6 +2312,7 @@ impl App {
             0 => {
                 let mut items =
                     vec![("New case".to_string(), in_case.then_some(Action::NewCase)), ("How to play".to_string(), Some(Action::Help))];
+                items.push(("About".to_string(), Some(Action::About(true))));
                 if CAN_QUIT {
                     items.push(("Quit".to_string(), Some(Action::Quit)));
                 }

@@ -19,7 +19,7 @@ Options go after `--`, for example `cargo run -- --seed 42`:
 
 To give the game to someone, run `cargo build --release` and send them `target/release/carmen` (`carmen.exe` on Windows, built on Windows). The data files are built into it, so rebuild after editing them.
 
-To put it on a website, run `./build-web.sh` (the first time, also `rustup target add wasm32-unknown-unknown`) and upload the six files in `dist/` to any web host. They're plain static files. Pushing to `main` does this for you: GitHub Actions builds the game and puts it on Cloudflare Pages (`.github/workflows/deploy-web.yml`, which needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets and a Pages project called `carmen`).
+To put it on a website, run `./build-web.sh` (the first time, also `rustup target add wasm32-unknown-unknown`) and upload the eight files in `dist/` to any web host. They're plain static files. Pushing to `main` does this for you: GitHub Actions builds the game and puts it on Cloudflare Pages (`.github/workflows/deploy-web.yml`, which needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets and a Pages project called `carmen`).
 
 On a phone held upright, the picture moves above the text panel and buttons, and a text box pops up for typing your name. Turned sideways, it's the original layout.
 

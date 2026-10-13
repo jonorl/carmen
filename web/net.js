@@ -49,5 +49,10 @@ miniquad_add_plugin({
     importObject.env.carmen_http_forget = function (id) {
       requests.delete(id);
     };
+    // Called on the frame after the click, which browsers still count as the
+    // click's doing, so it isn't treated as a pop-up.
+    importObject.env.carmen_open_url = function (url, len) {
+      window.open(text(url, len), "_blank", "noopener");
+    };
   },
 });
