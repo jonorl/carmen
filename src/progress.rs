@@ -22,6 +22,11 @@ fn server() -> Option<&'static str> {
     }
 }
 
+/// Ask the server for every detective, for the roster. None without one.
+pub fn roster_request() -> Option<Request> {
+    server().map(|server| Request::get(&format!("{server}/detectives")))
+}
+
 /// Arrests by detective, keyed by name without regard to case or spacing.
 pub struct Progress {
     arrests: BTreeMap<String, u32>,
@@ -77,6 +82,14 @@ impl Progress {
         store::write(&self.to_json());
         self.send(name, false);
         n
+    }
+
+    /// Everyone on this device, most arrests first: the roster when the
+    /// server can't be reached. Names are as filed, in lower case.
+    pub fn local_roster(&self) -> Vec<Detective> {
+        let mut list: Vec<Detective> = self.arrests.iter().map(|(name, &arrests)| Detective { name: name.clone(), arrests }).collect();
+        list.sort_by(|a, b| b.arrests.cmp(&a.arrests).then_with(|| a.name.cmp(&b.name)));
+        list
     }
 
     /// Ask the server for `name`'s arrests, as they sign in.

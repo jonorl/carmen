@@ -35,7 +35,7 @@ Each interview costs 3 hours, flights take longer the farther you go, and you sl
 
 ## Ranks
 
-As in the original, you start as a Rookie and get promoted as you make arrests. Each rank's cases are harder, and each promotion takes more arrests than the last. After every arrest the printer says how many more you need. Your arrests are saved under your name, which can be up to 8 characters (there are no passwords: it's for family and friends). They're kept on the agency's server, so your rank follows you to any computer or phone, and also on the device itself: in a file on your computer (`~/.local/share/where-in-the-world/progress.json` on Linux, the app-data folder on Windows and macOS), or in the browser's storage on the website. If the server can't be reached, the game carries on with the device's copy, and the two catch up next time.
+As in the original, you start as a Rookie and get promoted as you make arrests. Each rank's cases are harder, and each promotion takes more arrests than the last. After every arrest the printer says how many more you need. Your arrests are saved under your name, which can be up to 8 characters (there are no passwords: it's for family and friends). They're kept on the agency's server, so your rank follows you to any computer or phone, and also on the device itself: in a file on your computer (`~/.local/share/where-in-the-world/progress.json` on Linux, the app-data folder on Windows and macOS), or in the browser's storage on the website. If the server can't be reached, the game carries on with the device's copy, and the two catch up next time. Bureau → Detective roster lists every detective with their rank and arrests.
 
 ## The server
 

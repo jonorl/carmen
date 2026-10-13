@@ -491,10 +491,12 @@ enum Action {
     ToggleSound,
     OpenDossier(usize),
     CloseDossier,
+    OpenRoster,
+    CloseRoster,
 }
 
 /// The menus across the top of the screen.
-const MENUS: [&str; 3] = ["Game", "Options", "Dossiers"];
+const MENUS: [&str; 4] = ["Game", "Options", "Bureau", "Dossiers"];
 
 struct App {
     data: Rc<Data>,
@@ -513,6 +515,8 @@ struct App {
     menu: Option<usize>,
     /// The suspect whose dossier is open on top of the screen.
     dossier: Option<usize>,
+    /// The detective roster, when it's open on top of the screen.
+    roster: Option<Roster>,
     /// Sounds decode in the background (asynchronously in browsers), so the
     /// game starts straight away and the typing goes quiet until they're ready.
     loading_sounds: Option<Coroutine<Option<Sounds>>>,
@@ -547,6 +551,7 @@ async fn run(data: Rc<Data>, args: Args) {
         cast: Cast::new(),
         menu: None,
         dossier: None,
+        roster: None,
         loading_sounds: Some(start_coroutine(Sounds::load())),
         scenes: HashMap::new(),
         // std's SystemTime panics in the browser; miniquad's clock works on both.
@@ -619,8 +624,8 @@ impl App {
             }
         }
         self.progress.poll();
-        // The screen ignores input under an open menu or dossier.
-        self.ui.enabled = self.menu.is_none() && self.dossier.is_none();
+        // The screen ignores input under an open menu, dossier or roster.
+        self.ui.enabled = self.menu.is_none() && self.dossier.is_none() && self.roster.is_none();
         let mut action = match &mut self.screen {
             Screen::Hq(hq) => hq_screen(&mut self.ui, hq, &mut self.name, &mut self.progress, self.rank_override, &mut self.sounds),
             Screen::Case(case) if case.computing.is_some_and(|t| get_time() - t >= sound::COMPUTE_SECONDS) => Some(Action::Computed),
@@ -645,6 +650,12 @@ impl App {
         if let Some(i) = self.dossier {
             let files = Files { data: &self.data, mugshots: &self.mugshots };
             if let Some(chosen) = dossier_window(&mut self.ui, &files, i) {
+                action = Some(chosen);
+            }
+        }
+        if let Some(roster) = &mut self.roster {
+            roster.poll(&self.progress, &self.name);
+            if let Some(chosen) = roster_window(&mut self.ui, roster, &self.name) {
                 action = Some(chosen);
             }
         }
@@ -717,7 +728,15 @@ impl App {
                     s.on = !s.on;
                 }
             }
-            Action::OpenDossier(i) => self.dossier = Some(i),
+            Action::OpenDossier(i) => {
+                self.roster = None;
+                self.dossier = Some(i);
+            }
+            Action::OpenRoster => {
+                self.dossier = None;
+                self.roster = Some(Roster::open());
+            }
+            Action::CloseRoster => self.roster = None,
             Action::EndChase => {
                 if let Some(s) = &mut self.sounds {
                     s.stop_chase();
@@ -2007,6 +2026,167 @@ fn dossier_window(ui: &mut Ui, files: &Files, i: usize) -> Option<Action> {
 /// Width of a character in the monospaced font.
 const MONO_W: f32 = 8.0;
 
+/// The bureau's detectives, from the server, or from this device when the
+/// server can't be reached.
+struct Roster {
+    request: Option<net::Request>,
+    list: Option<Vec<carmen_shared::Detective>>,
+    /// Whether the list is only this device's.
+    offline: bool,
+    /// The first row shown.
+    top: usize,
+}
+
+const ROSTER_ROW_H: f32 = 20.0;
+
+impl Roster {
+    fn open() -> Roster {
+        Roster { request: progress::roster_request(), list: None, offline: false, top: 0 }
+    }
+
+    /// Take in the server's answer once it's there, and scroll to `me`.
+    fn poll(&mut self, progress: &Progress, me: &str) {
+        if self.list.is_some() {
+            return;
+        }
+        let answer = match &mut self.request {
+            Some(request) => match request.poll() {
+                None => return,
+                Some(answer) => answer.ok().and_then(|body| serde_json::from_str::<Vec<carmen_shared::Detective>>(&body).ok()),
+            },
+            None => None,
+        };
+        self.offline = answer.is_none();
+        let list = answer.unwrap_or_else(|| progress.local_roster());
+        // Start with me on screen, a few rows down if there's room.
+        let me = carmen_shared::key(me);
+        if let Some(at) = list.iter().position(|d| carmen_shared::key(&d.name) == me) {
+            self.top = at.saturating_sub(3);
+        }
+        self.list = Some(list);
+        self.request = None;
+    }
+}
+
+/// The detective roster, after the original's: a white window with a title
+/// bar, everyone's name, rank and arrests in a list that scrolls, the
+/// detective at the keyboard in inverse video, and a button to close it.
+fn roster_window(ui: &mut Ui, roster: &mut Roster, me: &str) -> Option<Action> {
+    let r = lay().dossier;
+    fill(Rect::new(r.x + 5.0, r.y + 5.0, r.w, r.h), INK);
+    fill(r, PAPER);
+    outline(r, INK);
+    outline(Rect::new(r.x + 3.0, r.y + 3.0, r.w - 6.0, r.h - 6.0), INK);
+
+    // The title between two blue bars.
+    let title = "Detective Roster";
+    let tw = ui.width(title, BIG, true);
+    let bar = Rect::new(r.x + 8.0, r.y + 9.0, r.w - 16.0, 16.0);
+    let gap = Rect::new(bar.x + (bar.w - tw) / 2.0 - 8.0, bar.y, tw + 16.0, bar.h);
+    fill(Rect::new(bar.x, bar.y, gap.x - bar.x, bar.h), NAVY);
+    fill(Rect::new(gap.x + gap.w, bar.y, bar.x + bar.w - gap.x - gap.w, bar.h), NAVY);
+    ui.text(title, gap.x + 8.0, bar.y + 13.0, BIG, INK, true);
+
+    let list_box = Rect::new(r.x + 10.0, r.y + 50.0, r.w - 20.0, r.h - 90.0);
+    let bar_w = 18.0;
+    let rows_box = Rect::new(list_box.x, list_box.y, list_box.w - bar_w, list_box.h);
+    // Columns: the name from the left, rank and arrests centred.
+    let name_x = rows_box.x + 12.0;
+    let rank_cx = rows_box.x + rows_box.w * if TALL_NOW.get() { 0.6 } else { 0.62 };
+    let arrests_cx = rows_box.x + rows_box.w * if TALL_NOW.get() { 0.9 } else { 0.88 };
+    ui.text("Name", name_x, list_box.y - 7.0, BIG, INK, true);
+    ui.text_centred("Rank", rank_cx, list_box.y - 7.0, BIG, INK, true);
+    ui.text_centred("Arrests", arrests_cx, list_box.y - 7.0, BIG, INK, true);
+    outline(list_box, INK);
+
+    let shown = ((rows_box.h - 4.0) / ROSTER_ROW_H).floor().max(1.0) as usize;
+    let total = roster.list.as_ref().map_or(0, Vec::len);
+    let most = total.saturating_sub(shown);
+    match &roster.list {
+        None => ui.text_centred("Checking the bureau's records…", rows_box.x + rows_box.w / 2.0, rows_box.y + 30.0, SMALL, DARK, false),
+        Some(list) if list.is_empty() => {
+            ui.text_centred("No detectives on file yet.", rows_box.x + rows_box.w / 2.0, rows_box.y + 30.0, SMALL, DARK, false)
+        }
+        Some(list) => {
+            let me = carmen_shared::key(me);
+            for (n, d) in list.iter().skip(roster.top).take(shown).enumerate() {
+                let row = Rect::new(rows_box.x + 2.0, rows_box.y + 2.0 + n as f32 * ROSTER_ROW_H, rows_box.w - 3.0, ROSTER_ROW_H);
+                let mine = carmen_shared::key(&d.name) == me;
+                if mine {
+                    fill(row, INK);
+                }
+                let ink = if mine { PAPER } else { INK };
+                let base = row.y + 15.0;
+                // Names this device filed in lower case read better capitalised.
+                let mut name: String = d.name.clone();
+                if let Some(first) = name.chars().next().filter(|c| c.is_lowercase()) {
+                    name.replace_range(..first.len_utf8(), &first.to_uppercase().to_string());
+                }
+                ui.mono(&name, name_x, base, ink);
+                let rank = RANKS[rank_for(d.arrests)].name;
+                ui.mono(rank, rank_cx - rank.chars().count() as f32 * MONO_W / 2.0, base, ink);
+                let n = d.arrests.to_string();
+                ui.mono(&n, arrests_cx - n.chars().count() as f32 * MONO_W / 2.0, base, ink);
+            }
+        }
+    }
+
+    // The scroll bar: arrows at each end, a grey track and a thumb.
+    let track = Rect::new(rows_box.x + rows_box.w, list_box.y, bar_w, list_box.h);
+    outline(track, INK);
+    let up = Rect::new(track.x, track.y, bar_w, bar_w);
+    let down = Rect::new(track.x, track.y + track.h - bar_w, bar_w, bar_w);
+    let groove = Rect::new(track.x + 1.0, up.y + up.h, bar_w - 2.0, down.y - up.y - up.h);
+    fill(groove, GREY);
+    if total > shown {
+        let thumb_h = (groove.h * shown as f32 / total as f32).max(10.0);
+        let thumb_y = groove.y + (groove.h - thumb_h) * roster.top as f32 / most.max(1) as f32;
+        let thumb = Rect::new(groove.x, thumb_y, groove.w, thumb_h);
+        fill(thumb, PAPER);
+        outline(thumb, INK);
+    }
+    for (b, pointing_up) in [(up, true), (down, false)] {
+        fill(b, PAPER);
+        outline(b, INK);
+        let (cx, cy) = (b.x + b.w / 2.0, b.y + b.h / 2.0);
+        let (tip, base) = if pointing_up { (cy - 4.0, cy + 3.0) } else { (cy + 4.0, cy - 3.0) };
+        draw_triangle(vec2(cx, tip), vec2(cx - 5.0, base), vec2(cx + 5.0, base), INK);
+    }
+    let mut step = 0i32;
+    if ui.take_click(up) || ui.key(KeyCode::Up) {
+        step = -1;
+    } else if ui.take_click(down) || ui.key(KeyCode::Down) {
+        step = 1;
+    } else if ui.key(KeyCode::PageUp) {
+        step = -(shown as i32);
+    } else if ui.key(KeyCode::PageDown) {
+        step = shown as i32;
+    } else if ui.hovered(list_box) {
+        step = -ui.wheel as i32;
+    }
+    roster.top = (roster.top as i32 + step).clamp(0, most as i32) as usize;
+
+    if roster.offline {
+        let note = "Bureau unreachable: this device's records only.";
+        ui.text(&ui.fit(note, SMALL, false, r.w - 150.0), r.x + 12.0, r.y + r.h - 16.0, SMALL, DARK, false);
+    }
+    let close_r = Rect::new(r.x + r.w - 120.0, r.y + r.h - 32.0, 108.0, 22.0);
+    let hover = ui.hovered(close_r);
+    fill(close_r, if hover { INK } else { YELLOW });
+    outline(close_r, INK);
+    // "Close" and its key in inverse, like the original's buttons.
+    let (ink, paper) = if hover { (YELLOW, INK) } else { (INK, YELLOW) };
+    let (cw, kw) = (ui.width("Close", BIG, true), ui.width("Esc", SMALL, true) + 6.0);
+    let x = close_r.x + (close_r.w - cw - 6.0 - kw) / 2.0;
+    ui.text("Close", x, close_r.y + 16.0, BIG, ink, true);
+    let key = Rect::new(x + cw + 6.0, close_r.y + 5.0, kw, 13.0);
+    fill(key, ink);
+    ui.text("Esc", key.x + 3.0, key.y + 10.0, SMALL, paper, true);
+    let outside = !ui.hovered(r) && ui.take_click(Rect::new(0.0, MENU_H, lay().w, lay().h));
+    let close = ui.take_click(close_r) || outside || ui.key(KeyCode::Escape) || ui.key(KeyCode::Enter);
+    close.then_some(Action::CloseRoster)
+}
+
 /// "Label: answer" with the label in bold and the answer typewritten,
 /// wrapping under the label. Returns the baseline for the next one.
 fn labelled(ui: &Ui, label: &str, value: &str, (x, right): (f32, f32), y: f32) -> f32 {
@@ -2069,6 +2249,7 @@ impl App {
                 Some(s) => vec![(format!("Sound: {}", if s.on { "on" } else { "off" }), Some(Action::ToggleSound))],
                 None => vec![("Sound: unavailable".to_string(), None)],
             },
+            2 => vec![("Detective roster".to_string(), Some(Action::OpenRoster))],
             _ => self.data.suspects.iter().enumerate().map(|(i, s)| (s.name.clone(), Some(Action::OpenDossier(i)))).collect(),
         }
     }

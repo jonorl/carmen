@@ -2,7 +2,8 @@
 //! them from device to device. There are no accounts, as it's for family and
 //! friends: a detective is just a name.
 //!
-//! GET /detectives/{name} gives their arrests (0 if they're new), and
+//! GET /detectives lists everyone, most arrests first (the roster),
+//! GET /detectives/{name} gives one detective's arrests (0 if they're new), and
 //! PUT /detectives/{name} with {"arrests": n} records a tally. A tally never
 //! goes down, so a device that was offline, or a request sent twice, can't
 //! cost anyone an arrest.
@@ -43,6 +44,7 @@ async fn main() {
     let cors = CorsLayer::new().allow_origin(origins).allow_methods([Method::GET, Method::PUT]).allow_headers([header::CONTENT_TYPE]);
     let app = Router::new()
         .route("/health", get(health))
+        .route("/detectives", get(roster))
         .route("/detectives/{name}", get(fetch).put(record))
         .layer(cors)
         .with_state(pool);
@@ -69,6 +71,18 @@ async fn stopped() {
 async fn health(State(pool): State<PgPool>) -> Answer<&'static str> {
     sqlx::query("SELECT 1").execute(&pool).await.map_err(trouble)?;
     Ok("ok")
+}
+
+/// More than the family will ever be, so a runaway table can't swamp the game.
+const ROSTER_LIMIT: i64 = 500;
+
+async fn roster(State(pool): State<PgPool>) -> Answer<Json<Vec<Detective>>> {
+    let rows: Vec<(String, i32)> = sqlx::query_as("SELECT name, arrests FROM detectives ORDER BY arrests DESC, name_key LIMIT $1")
+        .bind(ROSTER_LIMIT)
+        .fetch_all(&pool)
+        .await
+        .map_err(trouble)?;
+    Ok(Json(rows.into_iter().map(|(name, arrests)| Detective { name, arrests: arrests.max(0) as u32 }).collect()))
 }
 
 async fn fetch(State(pool): State<PgPool>, Path(name): Path<String>) -> Answer<Json<Detective>> {
