@@ -6,8 +6,10 @@
   <title>Where in the World?</title>
   <style>
     html, body { margin: 0; height: 100%; background: #0f1626; overflow: hidden; }
-    /* The game scales its 1280x720 layout down to fit whatever size this canvas is. */
-    canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+    /* The game scales its layout to fit whatever size this canvas is. On
+       phones 100vh counts the space behind the address bar too, which hid the
+       buttons; dvh is only what's visible (100vh is for older browsers). */
+    canvas { display: block; width: 100vw; height: 100vh; height: 100dvh; outline: none; }
     /* Shown while the game downloads, in the game's own black and white. */
     #loading {
       position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
