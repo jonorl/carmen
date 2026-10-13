@@ -17,6 +17,10 @@ const SPEED: f64 = 75.0;
 /// Queued between paragraphs: printing stops here until `resume`, since
 /// only about ten lines fit on the visible paper.
 const PAUSE: char = '\u{c}';
+/// Queued between paragraphs of a printout nobody needs to page through:
+/// printing stops here for `BEAT_SECONDS`, as the original's did.
+const BEAT: char = '\u{b}';
+const BEAT_SECONDS: f64 = 1.0;
 /// Lines of paper showing above the printer.
 const SHOWN: usize = 11;
 
@@ -27,6 +31,8 @@ pub struct Printer {
     /// The column the queued text will end at, for wrapping what comes next.
     col: usize,
     owed: f64,
+    /// How long printing has been resting at a `BEAT`.
+    rested: f64,
     /// Pixels of paper still to scroll up after a new line, for a smooth feed.
     feed: f32,
     /// Total paper fed, so the tractor holes move with it.
@@ -35,7 +41,7 @@ pub struct Printer {
 
 impl Printer {
     pub fn new() -> Printer {
-        Printer { lines: vec![String::new()], pending: VecDeque::new(), col: 0, owed: 0.0, feed: 0.0, fed: 0.0 }
+        Printer { lines: vec![String::new()], pending: VecDeque::new(), col: 0, owed: 0.0, rested: 0.0, feed: 0.0, fed: 0.0 }
     }
 
     fn push(&mut self, c: char) {
@@ -67,8 +73,9 @@ impl Printer {
         }
     }
 
-    /// Queue paragraphs with a blank line between them, pausing wherever the
-    /// next one would push the first unread line off the top of the paper.
+    /// Queue paragraphs with a blank line and a moment's rest between them,
+    /// pausing for the player wherever the next one would push the first
+    /// unread line off the top of the paper.
     pub fn print_paragraphs(&mut self, paras: &[String]) {
         let mut unread = 0;
         for (n, para) in paras.iter().enumerate() {
@@ -78,6 +85,7 @@ impl Printer {
                     self.pause();
                     unread = 0;
                 } else {
+                    self.pending.push_back(BEAT);
                     unread += 1;
                 }
                 self.print("\n\n");
@@ -125,10 +133,14 @@ impl Printer {
             }
         }
         self.owed = 0.0;
+        self.rested = 0.0;
         self.feed = 0.0;
     }
 
     fn put(&mut self, c: char) {
+        if c == BEAT {
+            return;
+        }
         if c == '\n' {
             self.lines.push(String::new());
             self.feed += LINE;
@@ -142,16 +154,29 @@ impl Printer {
     /// stops, at a pause or the end.
     pub fn update(&mut self, dt: f32, sounds: &mut Option<Sounds>) -> bool {
         self.feed = (self.feed - dt * LINE * 10.0).max(0.0);
+        let resting = self.pending.front() == Some(&BEAT);
         if let Some(s) = sounds {
-            s.printing(self.busy());
+            s.printing(self.busy() && !resting);
         }
         if !self.busy() {
             self.owed = 0.0;
             return false;
         }
+        if resting {
+            // Nothing is owed for the rest, or it would all print at once afterwards.
+            self.owed = 0.0;
+            self.rested += dt as f64;
+            if self.rested >= BEAT_SECONDS {
+                self.pending.pop_front();
+                self.rested = 0.0;
+            }
+            return false;
+        }
         self.owed += dt as f64 * SPEED;
-        while self.owed >= 1.0 && self.busy() {
-            let Some(c) = self.pending.pop_front() else { break };
+        while self.owed >= 1.0 && self.busy() && self.pending.front() != Some(&BEAT) {
+            let Some(c) = self.pending.pop_front() else {
+                break;
+            };
             self.owed -= 1.0;
             self.put(c);
         }
@@ -300,6 +325,20 @@ mod tests {
         p.finish();
         assert!(!p.waiting() && !p.busy());
         assert_eq!(p.lines.len(), 15);
+    }
+
+    #[test]
+    fn rests_between_paragraphs_without_printing_anything() {
+        let mut p = Printer::new();
+        p.print_paragraphs(&["One".to_string(), "Two".to_string()]);
+        p.update(1.0, &mut None);
+        assert_eq!(p.lines, ["One"]);
+        assert!(p.busy(), "resting counts as busy, so a click skips it");
+        p.update(0.5, &mut None);
+        assert_eq!(p.lines, ["One"]);
+        p.update(0.6, &mut None);
+        p.update(1.0, &mut None);
+        assert_eq!(p.lines, ["One", "", "Two"]);
     }
 
     #[test]

@@ -43,6 +43,7 @@ pub fn paint(p: &mut Painter, country: &str) -> bool {
         "Yemen" => yemen,
         "Belgium" => belgium,
         "Uruguay" => uruguay,
+        "Monkey Island" => monkey_island,
         _ => return false,
     };
     scene(p);
@@ -308,7 +309,10 @@ fn congo(p: &mut Painter) {
 }
 
 fn pirogue(p: &mut Painter, x: i32, waterline: i32, len: i32) {
-    p.poly(&[(x - len / 2, waterline - 3), (x + len / 2, waterline - 3), (x + len / 2 - 4, waterline), (x - len / 2 + 4, waterline)], [70, 45, 30]);
+    p.poly(
+        &[(x - len / 2, waterline - 3), (x + len / 2, waterline - 3), (x + len / 2 - 4, waterline), (x - len / 2 + 4, waterline)],
+        [70, 45, 30],
+    );
     p.person(x + len / 5, waterline - 3, [220, 180, 40]);
     p.line(x + len / 5 + 3, waterline - 14, x + len / 5 + 9, waterline + 2, [120, 90, 50]);
     if len > 40 {
@@ -457,87 +461,136 @@ fn tower(p: &mut Painter, cx: i32, base: i32, top: i32) {
 }
 
 fn italy(p: &mut Painter) {
-    // The Colosseum, its outer wall broken away on one side, with umbrella
-    // pines and cypresses.
-    p.sky(160, 214);
-    p.mountains(165, 18, 1.4, [110, 130, 110], 0.5, false);
-    for x in [6, 22, 248] {
-        p.cypress(x, 222, 50);
+    // Milan's Duomo: a white marble Gothic front bristling with pinnacles,
+    // the forest of spires on the roof behind, and the golden Madonnina on
+    // the tallest, over a square full of pigeons.
+    p.sky(170, 40);
+    p.clouds(2, 24, 60);
+    p.buildings(0, p.w, 226, (40, 60), &[[200, 170, 130], [220, 190, 150], [190, 150, 120]], 0.4);
+    let marble: Rgb = [236, 226, 216];
+    let shade = scale(marble, 0.8);
+    // The roof's spires, and the central one with the Madonnina.
+    for x in (60..220).step_by(12) {
+        pinnacle(p, x, 140, 104 + (x * 7 % 13), shade);
     }
-    let travertine: Rgb = [218, 198, 156];
-    let (x0, x1, base) = (24, 254, 226);
-    let tiers = [(base - 26, base), (base - 52, base - 26), (base - 78, base - 52)];
-    for x in x0..x1 {
-        // The outer ring is missing on the right, showing the lower inner wall.
-        let ruined = x > 182;
-        let top = if ruined { base - 60 + ((x - 182) * 3 / 4).min(30) + (x * 7 % 5) } else { base - 96 };
-        let curve = ((x - (x0 + x1) / 2) as f32 / ((x1 - x0) / 2) as f32).abs();
-        let c = if dither(x, 0, curve * 0.8) { scale(travertine, 0.82) } else { travertine };
-        p.rect(x, top, 1, base - top, c);
+    p.rect(132, 46, 10, 80, shade);
+    p.peak(137, 46, 6, 18, shade);
+    p.cv.rect(136, 20, 3, 8, [250, 200, 60]);
+    p.cv.disc(137, 18, 2, [250, 200, 60]);
+    // The front: a broad gable over five doors and tall pointed windows.
+    p.poly(&[(50, 226), (50, 150), (137, 112), (224, 150), (224, 226)], marble);
+    for x in [70, 100, 174, 204] {
+        p.rect(x - 4, 166, 8, 24, [60, 70, 90]);
+        p.peak(x, 166, 4, 6, [60, 70, 90]);
     }
-    for (i, &(t, b)) in tiers.iter().enumerate() {
-        p.rect(x0, b - 2, x1 - x0, 2, scale(travertine, 0.7));
-        let mut x = x0 + 4;
-        while x + 9 < x1 {
-            let top = if x > 182 { base - 60 + ((x - 182) * 3 / 4).min(30) } else { base - 96 };
-            if t + 6 > top {
-                let opening = [40, 32, 30];
-                p.rect(x, t + 8, 8, b - t - 10, opening);
-                p.disc(x + 4, t + 8, 4, opening);
-                if i == 0 && p.after_dark() {
-                    p.cv.rect(x + 2, b - 8, 4, 6, [255, 200, 110]);
-                }
-            }
-            x += 14;
-        }
+    p.disc(137, 152, 10, [60, 70, 90]);
+    p.disc(137, 152, 6, shade);
+    for (x, w, h) in [(60, 12, 22), (88, 14, 26), (128, 18, 32), (172, 14, 26), (202, 12, 22)] {
+        p.rect(x, 226 - h, w, h, [80, 60, 40]);
+        p.peak(x + w / 2, 226 - h, w / 2, 6, [80, 60, 40]);
     }
-    p.rect(x0, base - 96, 182 - x0, 4, scale(travertine, 0.75));
-    p.ground(226, [150, 140, 130]);
-    for (x, y) in [(10, 262), (262, 270)] {
-        p.rect(x - 1, y - 40, 3, 40, [100, 70, 50]);
-        p.ellipse(x, y - 44, 18, 6, [40, 90, 50]);
-        p.ellipse(x - 2, y - 46, 12, 3, [60, 115, 65]);
+    // Buttresses running up the front, each ending in a pinnacle.
+    for x in [50, 80, 112, 162, 194, 224] {
+        let top = 150 - (40 - (x - 137i32).abs() * 40 / 87).max(0);
+        p.rect(x - 2, top, 5, 226 - top, shade);
+        pinnacle(p, x, top, top - 26, marble);
+    }
+    // The square, and its pigeons.
+    p.ground(226, [190, 180, 170]);
+    for _ in 0..30 {
+        let (x, y) = (p.rng.below(p.w as usize) as i32, 232 + p.rng.below(46) as i32);
+        p.rect(x, y, 3, 2, [110, 110, 120]);
+        p.set(x + 3, y, [80, 80, 90]);
+    }
+    for x in [40, 120, 230] {
+        p.person(x, 258 + (x % 9), [40 + x as u8 % 150, 50, 110]);
     }
 }
 
+/// A slim Gothic pinnacle rising from `base` to `top`, a statue on its tip.
+fn pinnacle(p: &mut Painter, x: i32, base: i32, top: i32, stone: Rgb) {
+    p.rect(x - 1, top + 6, 3, base - top - 6, stone);
+    p.peak(x, top + 6, 2, 6, stone);
+    p.set(x, top - 1, scale(stone, 0.9));
+    p.set(x, top - 2, scale(stone, 0.9));
+}
+
 fn spain(p: &mut Painter) {
-    // Madrid's Puerta de Alcalá: a granite gate with five openings, in a
-    // roundabout of flowers, with the Retiro's trees behind.
-    p.sky(170, 60);
-    for x in (0..p.w).step_by(16) {
-        let leaf = p.far([60, 120, 60], 0.3);
-        p.cv.disc(x + 8, 172, 12, leaf);
+    // Barcelona's Sagrada Família: Gaudí's spindle towers over the Nativity
+    // façade, the tall Tower of Jesus Christ behind with its cross, and a
+    // building crane, because it has never quite been finished.
+    p.sky(196, 40);
+    p.clouds(3, 20, 70);
+    p.mountains(198, 34, 1.0, [100, 120, 100], 0.55, false);
+    p.buildings(0, p.w, 214, (12, 30), &[[220, 200, 170], [200, 170, 140], [230, 220, 200]], 0.45);
+    let stone: Rgb = [196, 168, 120];
+    let shade = scale(stone, 0.75);
+    // Behind: the Tower of Jesus Christ and the Evangelists' towers either
+    // side of it.
+    spindle(p, 137, 150, 12, 18, shade);
+    let cross = if p.after_dark() { [255, 250, 230] } else { [240, 240, 235] };
+    p.cv.rect(136, 4, 3, 12, cross);
+    p.cv.rect(132, 8, 11, 3, cross);
+    for x in [114, 160] {
+        spindle(p, x, 156, 9, 46, scale(stone, 0.68));
     }
-    p.rect(0, 172, p.w, 50, p.far([60, 120, 60], 0.3));
-    let granite: Rgb = [216, 206, 184];
-    p.rect(52, 140, 170, 76, granite);
-    let arch = [70, 85, 120];
-    for x in [82, 127, 172] {
-        p.rect(x, 168, 20, 48, arch);
-        p.disc(x + 10, 168, 10, arch);
+    // The body of the church, and the façade's three portals under a gable.
+    p.rect(52, 152, 170, 66, shade);
+    p.rect(60, 160, 154, 58, stone);
+    p.peak(137, 162, 34, 34, stone);
+    for (x, w, h) in [(80, 16, 26), (127, 20, 34), (178, 16, 26)] {
+        p.rect(x, 218 - h, w, h, [70, 55, 45]);
+        p.disc(x + w / 2, 218 - h, w / 2, [70, 55, 45]);
     }
-    for x in [58, 200] {
-        p.rect(x, 178, 16, 38, arch);
+    // Gaudí's stonework drips like wax down the gable.
+    for _ in 0..70 {
+        let x = 96 + p.rng.below(82) as i32;
+        let y = 132 + p.rng.below(50) as i32;
+        let len = 2 + p.rng.below(5) as i32;
+        if (x - 137).abs() < (y - 128) {
+            p.rect(x, y, 1, len, scale(stone, 0.85));
+        }
     }
-    for x in (54..222).step_by(22) {
-        p.rect(x + 18, 146, 4, 70, scale(granite, 0.85));
+    // The Nativity façade's four towers, the middle pair taller.
+    for (x, top) in [(72, 64), (102, 42), (172, 42), (202, 64)] {
+        spindle(p, x, 168, 9, top, stone);
     }
-    p.rect(48, 134, 178, 6, scale(granite, 0.8));
-    p.rect(100, 114, 74, 20, granite);
-    p.rect(124, 118, 26, 12, [190, 160, 90]);
-    p.peak(137, 114, 40, 14, granite);
-    for x in [104, 116, 158, 170] {
-        p.rect(x, 104, 4, 10, scale(granite, 0.75));
-        p.disc(x + 2, 102, 2, scale(granite, 0.75));
+    // A crane on the right, still at work.
+    let yellow: Rgb = [230, 180, 40];
+    p.rect(238, 36, 4, 182, yellow);
+    for y in (40..216).step_by(8) {
+        p.line(238, y, 241, y + 8, scale(yellow, 0.7));
     }
-    p.ground(216, [150, 150, 150]);
-    p.ellipse(137, 252, 120, 22, [70, 150, 60]);
-    for _ in 0..80 {
-        let x = 137 + p.rng.below(220) as i32 - 110;
-        let y = 240 + p.rng.below(22) as i32;
-        let c = if p.rng.below(2) == 0 { [220, 40, 50] } else { [250, 210, 50] };
-        p.set(x, y, c);
+    p.rect(190, 34, 84, 3, yellow);
+    p.line(240, 22, 196, 34, [80, 80, 80]);
+    p.line(240, 22, 272, 34, [80, 80, 80]);
+    p.rect(239, 20, 2, 14, yellow);
+    p.rect(252, 37, 12, 7, [110, 110, 110]);
+    p.line(212, 37, 212, 60, [60, 60, 60]);
+    p.rect(209, 60, 7, 3, [60, 60, 60]);
+    // The square in front, with plane trees.
+    p.ground(218, [176, 164, 140]);
+    p.tree(22, 262, 22, [60, 120, 55]);
+    p.tree(256, 266, 20, [60, 120, 55]);
+    for x in [96, 150, 190] {
+        p.person(x, 252 + (x % 7), [60 + x as u8 % 120, 70, 140]);
     }
+}
+
+/// One of the Sagrada Família's towers: a tall tapering spindle standing on
+/// `base`, pierced with louvres, topped with a bright mosaic finial at `top`.
+fn spindle(p: &mut Painter, x: i32, base: i32, half: i32, top: i32, stone: Rgb) {
+    p.poly(&[(x - half, base), (x - half + 2, top + 30), (x - 2, top), (x + 2, top), (x + half - 2, top + 30), (x + half, base)], stone);
+    let dark = scale(stone, 0.45);
+    for (n, y) in (top + 10..base - 4).step_by(5).enumerate() {
+        let spread = 1 + (y - top) * (half - 3) / (base - top).max(1);
+        let dx = if n % 2 == 0 { -spread / 2 } else { spread / 2 };
+        p.rect(x + dx - 1, y, 2, 2, dark);
+    }
+    p.rect(x - 1, top - 8, 3, 8, [200, 60, 50]);
+    p.disc(x, top - 10, 3, [240, 200, 60]);
+    p.set(x - 1, top - 11, [250, 250, 250]);
+    p.set(x + 1, top - 9, [250, 250, 250]);
 }
 
 fn greece(p: &mut Painter) {
@@ -616,7 +669,11 @@ fn norway(p: &mut Painter) {
     for _ in 0..24 {
         let side = p.rng.below(2) == 0;
         let y = 110 + p.rng.below(80) as i32;
-        let x = if side { p.rng.below(((y - 90) / 2).max(1) as usize) as i32 } else { 274 - p.rng.below(((y - 80) / 2).max(1) as usize) as i32 };
+        let x = if side {
+            p.rng.below(((y - 90) / 2).max(1) as usize) as i32
+        } else {
+            274 - p.rng.below(((y - 80) / 2).max(1) as usize) as i32
+        };
         p.conifer(x, y, 10, [30, 65, 45]);
     }
     sailboat(p, 140, 214, 18, [190, 40, 40]);
@@ -741,10 +798,9 @@ fn ireland(p: &mut Painter) {
     let rock: Rgb = [78, 72, 68];
     // Headlands receding along the coast, fading towards the sky.
     let haze = p.haze();
-    for (pts, fade) in [
-        ([(0, 140), (52, 137), (60, 150), (56, 176), (0, 178)], 0.45),
-        ([(40, 146), (116, 142), (124, 160), (116, 214), (46, 218)], 0.22),
-    ] {
+    for (pts, fade) in
+        [([(0, 140), (52, 137), (60, 150), (56, 176), (0, 178)], 0.45), ([(40, 146), (116, 142), (124, 160), (116, 214), (46, 218)], 0.22)]
+    {
         let (top, front) = ((pts[0], pts[1]), pts[2].0);
         p.poly(&pts, mix(rock, haze, fade));
         for y in (top.0.1 + 6..pts[3].1).step_by(6) {
@@ -831,10 +887,7 @@ fn japan(p: &mut Painter) {
     p.sky(170, 222);
     let rock = mix([90, 105, 150], p.haze(), 0.25);
     p.poly(&[(0, 182), (110, 80), (152, 78), (274, 182)], rock);
-    p.poly(
-        &[(94, 96), (110, 80), (152, 78), (168, 96), (158, 92), (148, 102), (136, 92), (124, 102), (112, 94)],
-        [248, 248, 252],
-    );
+    p.poly(&[(94, 96), (110, 80), (152, 78), (168, 96), (158, 92), (148, 102), (136, 92), (124, 102), (112, 94)], [248, 248, 252]);
     p.rect(0, 178, p.w, 14, mix([200, 210, 230], p.haze(), 0.5));
     p.hills(206, 20, 1.2, [60, 110, 70]);
     let red: Rgb = [196, 54, 44];
@@ -1372,4 +1425,100 @@ fn uruguay(p: &mut Painter) {
         }
     }
     p.palm(250, 280, 44);
+}
+
+// ---------------------------------------------------------- the Caribbean
+
+fn monkey_island(p: &mut Painter) {
+    // After the 1990 adventure game: a smoking volcano over the jungle, the
+    // giant stone Monkey Head carved into the hillside with its mouth open,
+    // a pirate ship at anchor in the bay, and palms on the beach.
+    p.sky(150, 214);
+    // The volcano behind, with smoke drifting off its crater.
+    let rock: Rgb = [92, 80, 78];
+    // Far-off colours are already lit, so they go straight onto the canvas.
+    let far_rock = p.far(rock, 0.35);
+    p.cv.poly(&[(0, 152), (70, 70), (96, 68), (170, 152)], far_rock);
+    let smoke: Rgb = [170, 165, 160];
+    for (n, (x, y)) in [(84, 60), (92, 50), (102, 42), (114, 36), (128, 32)].into_iter().enumerate() {
+        let puff = p.far(smoke, 0.25 + n as f32 * 0.1);
+        p.cv.ellipse(x, y, 7 + n as i32 * 2, 5 + n as i32, puff);
+    }
+    p.water(150, 222, [30, 90, 150]);
+    // The jungle hill the head is carved from.
+    let jungle: Rgb = [40, 105, 50];
+    p.poly(&[(120, 196), (150, 120), (196, 96), (240, 104), (274, 128), (274, 196)], jungle);
+    let hill = p.lit(jungle);
+    for _ in 0..40 {
+        let (x, y, r) = (124 + p.rng.below(150) as i32, 112 + p.rng.below(80) as i32, 3 + p.rng.below(3) as i32);
+        // Only on the hill, not floating in the sky or the sea.
+        if p.cv.get(x, y) == Some(hill) {
+            p.disc(x, y, r, [30, 85, 40]);
+        }
+    }
+    monkey_head(p, 204, 138);
+    pirate_ship(p, 58, 182);
+    // The beach in front, and palms.
+    p.ground(218, [214, 190, 130]);
+    for x in (0..p.w).step_by(3) {
+        p.set(x, 218, [240, 240, 230]);
+    }
+    p.palm(28, 266, 60);
+    p.palm(250, 262, 54);
+}
+
+/// The Monkey Head: a stone ape's face as big as a hill, centred at (cx, cy),
+/// its open mouth the way in. At night a fire glows inside.
+fn monkey_head(p: &mut Painter, cx: i32, cy: i32) {
+    let stone: Rgb = [150, 142, 128];
+    let shade: Rgb = [112, 104, 94];
+    let dark: Rgb = [30, 24, 22];
+    p.ellipse(cx - 34, cy - 4, 9, 13, shade);
+    p.ellipse(cx + 34, cy - 4, 9, 13, shade);
+    p.ellipse(cx - 34, cy - 4, 5, 8, stone);
+    p.ellipse(cx + 34, cy - 4, 5, 8, stone);
+    p.ellipse(cx, cy, 30, 38, shade);
+    p.ellipse(cx - 3, cy - 2, 26, 35, stone);
+    // A heavy brow over deep-set eyes.
+    p.rect(cx - 24, cy - 18, 48, 6, shade);
+    p.ellipse(cx - 11, cy - 9, 6, 4, dark);
+    p.ellipse(cx + 11, cy - 9, 6, 4, dark);
+    // The muzzle, with nostrils and the gaping mouth.
+    p.ellipse(cx, cy + 14, 19, 15, [168, 160, 146]);
+    p.rect(cx - 6, cy + 3, 3, 3, dark);
+    p.rect(cx + 3, cy + 3, 3, 3, dark);
+    p.ellipse(cx, cy + 19, 11, 8, dark);
+    if p.after_dark() {
+        // Firelight inside, and eyes catching it: light sources stay bright.
+        for (x, y, r, c) in [(cx, cy + 21, 7, [230, 120, 40]), (cx, cy + 22, 4, [255, 200, 90])] {
+            p.cv.disc(x, y, r, c);
+        }
+        p.cv.rect(cx - 12, cy - 10, 2, 2, [255, 220, 120]);
+        p.cv.rect(cx + 10, cy - 10, 2, 2, [255, 220, 120]);
+    }
+}
+
+/// A pirate ship at anchor, its waterline at `base` and its middle at x.
+fn pirate_ship(p: &mut Painter, x: i32, base: i32) {
+    let hull: Rgb = [60, 38, 28];
+    p.poly(&[(x - 34, base - 12), (x + 30, base - 12), (x + 24, base), (x - 28, base)], hull);
+    p.rect(x - 34, base - 18, 14, 6, hull);
+    p.rect(x - 30, base - 9, 52, 1, [150, 110, 60]);
+    for port in 0..5 {
+        p.rect(x - 22 + port * 9, base - 7, 3, 2, [20, 14, 10]);
+    }
+    let sail: Rgb = [230, 222, 200];
+    for (mx, h) in [(x - 14, 50), (x + 8, 60)] {
+        let top = base - 12 - h;
+        let mid = top + h / 2;
+        p.rect(mx, top, 2, h, hull);
+        // A topsail over a bigger mainsail, both bellied out, with their yards.
+        p.poly(&[(mx - 7, top + 6), (mx + 9, top + 6), (mx + 10, mid - 4), (mx - 8, mid - 4)], sail);
+        p.poly(&[(mx - 11, mid), (mx + 13, mid), (mx + 15, base - 22), (mx - 13, base - 22)], sail);
+        p.rect(mx - 8, top + 6, 18, 1, hull);
+        p.rect(mx - 11, mid, 25, 1, hull);
+    }
+    // The Jolly Roger flying from the main mast.
+    p.rect(x + 10, base - 78, 9, 6, [20, 20, 24]);
+    p.rect(x + 13, base - 76, 3, 2, [235, 235, 230]);
 }

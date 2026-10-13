@@ -5,12 +5,7 @@ use macroquad::prelude::*;
 
 pub type Rgb = [u8; 3];
 
-const BAYER: [[f32; 4]; 4] = [
-    [0.0, 8.0, 2.0, 10.0],
-    [12.0, 4.0, 14.0, 6.0],
-    [3.0, 11.0, 1.0, 9.0],
-    [15.0, 7.0, 13.0, 5.0],
-];
+const BAYER: [[f32; 4]; 4] = [[0.0, 8.0, 2.0, 10.0], [12.0, 4.0, 14.0, 6.0], [3.0, 11.0, 1.0, 9.0], [15.0, 7.0, 13.0, 5.0]];
 
 /// Ordered dithering: whether pixel (x, y) shows the next colour when a
 /// blend is `frac` of the way there. This gives the checkered gradients of

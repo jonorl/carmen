@@ -4,16 +4,8 @@
 
 use macroquad::prelude::*;
 
-pub const W: f32 = 640.0;
-pub const H: f32 = 360.0;
-
 pub const fn hex(v: u32) -> Color {
-    Color::new(
-        ((v >> 16) & 255) as f32 / 255.0,
-        ((v >> 8) & 255) as f32 / 255.0,
-        (v & 255) as f32 / 255.0,
-        1.0,
-    )
+    Color::new(((v >> 16) & 255) as f32 / 255.0, ((v >> 8) & 255) as f32 / 255.0, (v & 255) as f32 / 255.0, 1.0)
 }
 
 // The 16-colour EGA palette the original games were drawn in, more or less.
@@ -64,8 +56,12 @@ pub struct Ui {
     fallback: Font,
     /// VT323, a monospaced terminal font, for the printer paper.
     mono: Font,
-    /// Mouse position in 640x360 layout pixels.
+    /// Mouse position in layout pixels.
     pub mouse: Vec2,
+    /// How wide this frame's layout is, and where it sits in the window.
+    width: f32,
+    offset: Vec2,
+    scale: f32,
     clicked: bool,
     /// 1 for a notch up, -1 for a notch down, 0 when the wheel is still.
     pub wheel: f32,
@@ -78,7 +74,18 @@ impl Ui {
     pub fn new(mut pixel: Font, fallback: Font, mut mono: Font) -> Ui {
         pixel.set_filter(FilterMode::Nearest);
         mono.set_filter(FilterMode::Nearest);
-        Ui { pixel, fallback, mono, mouse: Vec2::ZERO, clicked: false, wheel: 0.0, enabled: true }
+        Ui {
+            pixel,
+            fallback,
+            mono,
+            mouse: Vec2::ZERO,
+            width: 640.0,
+            offset: Vec2::ZERO,
+            scale: 1.0,
+            clicked: false,
+            wheel: 0.0,
+            enabled: true,
+        }
     }
 
     /// Printer text: VT323 at 20 px, where its pixels line up and every
@@ -88,7 +95,9 @@ impl Ui {
         draw_text_ex(s, x.round(), y.round(), params);
     }
 
-    pub fn begin_frame(&mut self, offset: Vec2, scale: f32) {
+    /// Start a frame drawn `width` wide, at `scale` and `offset` in the window.
+    pub fn begin_frame(&mut self, offset: Vec2, scale: f32, width: f32) {
+        (self.width, self.offset, self.scale) = (width, offset, scale);
         self.mouse = (Vec2::from(mouse_position()) - offset) / scale;
         self.clicked = is_mouse_button_pressed(MouseButton::Left);
         self.enabled = true;
@@ -101,6 +110,11 @@ impl Ui {
         } else {
             0.0
         };
+    }
+
+    /// Where layout rectangle `r` is in the window.
+    pub fn to_window(&self, r: Rect) -> Rect {
+        Rect::new(self.offset.x + r.x * self.scale, self.offset.y + r.y * self.scale, r.w * self.scale, r.h * self.scale)
     }
 
     fn font(&self, fallback: bool) -> &Font {
@@ -214,7 +228,7 @@ impl Ui {
             outline(Rect::new(inner.x, inner.y, inner.w, inner.h), YELLOW);
             // A tooltip above the buttons, since the icons carry no words for some.
             let w = self.width(icon.name(), SMALL, true) + 10.0;
-            let x = (r.x + r.w / 2.0 - w / 2.0).clamp(2.0, W - w - 2.0);
+            let x = (r.x + r.w / 2.0 - w / 2.0).clamp(2.0, self.width - w - 2.0);
             fill(Rect::new(x, r.y - 18.0, w, 16.0), INK);
             outline(Rect::new(x, r.y - 18.0, w, 16.0), PAPER);
             self.text(icon.name(), x + 5.0, r.y - 6.0, SMALL, PAPER, true);

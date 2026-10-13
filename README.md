@@ -12,14 +12,16 @@ cargo run
 
 Options go after `--`, for example `cargo run -- --seed 42`:
 
-- `--difficulty 1|2|3` lets you press Enter on the title screen to start that difficulty (Rookie, Detective, Super Sleuth).
+- `--rank 1` to `--rank 6` plays cases as hard as that rank (Rookie to Super Sleuth), whatever your real rank. Arrests still count towards promotion.
 - `--seed 42` replays the same case, which is handy for challenging someone to beat your time.
 - `--check` checks your edited data files and points at any mistakes.
 - `--data FOLDER` reads the JSON files from another folder.
 
 To give the game to someone, run `cargo build --release` and send them `target/release/carmen` (`carmen.exe` on Windows, built on Windows). The data files are built into it, so rebuild after editing them.
 
-To put it on a website, run `./build-web.sh` (the first time, also `rustup target add wasm32-unknown-unknown`) and upload the three files in `dist/` to any web host. They're plain static files, so nothing needs to run on the server.
+To put it on a website, run `./build-web.sh` (the first time, also `rustup target add wasm32-unknown-unknown`) and upload the five files in `dist/` to any web host. They're plain static files, so nothing needs to run on the server.
+
+On a phone held upright, the picture moves above the text panel and buttons, and a text box pops up for typing your name. Turned sideways, it's the original layout.
 
 The menu bar along the top has Game (new case, how to play), Options (sound) and Dossiers, where you can read anyone's file at any time, even at headquarters. The four buttons under the text are the notebook (everything witnesses told you, plus help), the plane (flights), the magnifying glass (interview witnesses) and the crime computer (warrants and dossiers). Click or press a key to skip the typing. Scroll the notes with the mouse wheel.
 
@@ -29,50 +31,56 @@ Someone in the family steals a treasure, and the clock starts Monday at 09:00. E
 
 Enter what you've learned into the crime computer. When only one person fits, you get a warrant. In the hideout city, witnesses warn you the thief is still in town, and one of the three places is where you catch them. Without a warrant for the right person, they get away.
 
-Each new interview in a city costs more time (1, 2, then 3 hours), flights take longer the farther you go, and you sleep from 23:00 to 07:00. The deadline is worked out for each case from the route, so a far-flung trail gets more time.
+Each interview costs 3 hours, flights take longer the farther you go, and you sleep from 23:00 to 07:00. The deadline is worked out for each case from the route, so a far-flung trail gets more time.
 
-| Difficulty | Flights to the hideout | Time allowance |
-|---|---|---|
-| Rookie | 4 | about 2 wrong turns |
-| Detective | 5 | about 1 wrong turn |
-| Super Sleuth | 6 | almost none |
+## Ranks
+
+As in the original, you start as a Rookie and get promoted as you make arrests. Each rank's cases are harder, and each promotion takes more arrests than the last. After every arrest the printer says how many more you need. Your arrests are saved under your name: in a file on your computer (`~/.local/share/where-in-the-world/progress.json` on Linux, the app-data folder on Windows and macOS), or in the browser's storage on the website, so each browser keeps its own.
+
+| Rank | Arrests | Flights to the hideout | Time allowance |
+|---|---|---|---|
+| Rookie | 0 | 4 | about 2 wrong turns |
+| Sleuth | 1 | 4 | about 2 wrong turns, less spare |
+| Private Eye | 3 | 5 | about 1 wrong turn |
+| Investigator | 6 | 5 | about 1 wrong turn, less spare |
+| Ace Detective | 10 | 6 | about 1 wrong turn |
+| Super Sleuth | 15 | 6 | almost none |
 
 ## Putting your people in: `suspects.json`
 
 Replace the placeholder people. Each person needs:
 
 - `name`
-- `pronoun`: `he`, `she` or `they`
-- a value for every trait (`hair`, `hobby`, `food`, `vehicle`, `quirk`)
-- optionally a `bio` (shown in the dossiers) and a `catchphrase` (what they say when you catch them)
+- `sex`: `male` or `female`. Witnesses say he or she, and the crime computer has a Sex field, as in the original game.
+- a value for every trait (`hobby`, `hair`, `feature`, `vehicle`, `other`)
+- optionally a `catchphrase` (what they say when you catch them) and a `bio` (shown as Notes in their dossier)
 - optionally a real photo for their dossier: run `tools/portrait.sh photo.jpg "Their Name"` (it needs ImageMagick) and rebuild. It's turned into a small pixel-art picture in `assets/suspects/`. If the face isn't in the middle, add the part to use as a third argument, like `300x436+82+24` (width x height + left + top, in the photo's pixels). The pictures are built into the game, so anyone you give it to, or who plays it on your website, sees them.
 - otherwise, optionally a `skin` tone for their drawn dossier picture: `light`, `rosy`, `olive`, `tan`, `brown` or `dark`. Without it, one is picked from their name. The rest of the photo comes from the words in their traits: "bald", "wavy brown hair", "beard" or "glasses" all show up.
 
 A few rules keep the game fair:
 
-- No two people can have the same pronoun and identical traits. `--check` catches this.
-- Trait values work best when several people share each one, like two with red hair or three who love karaoke. The detective then needs several clues to narrow it down.
-- With 8 to 12 people and 5 traits, cases stay interesting.
-
-### Pronouns
-
-With `"witness_pronouns": true`, witnesses say he, she or they, and the crime computer has a Pronoun field, like the original game. If someone is the only "they" or the only "she", the very first witness gives them away. In that case, set `"witness_pronouns": false` and every witness says "they". `--check` warns you when this applies.
+- No two people can have the same sex and the same crime computer traits. `--check` catches this.
+- Trait values work best when several people share each one, like two with black hair or two who get around by bicycle. The detective then needs several clues to narrow it down.
+- If someone is the only man or the only woman, the first witness gives them away; `--check` warns you.
+- With 8 to 12 people, cases stay interesting.
 
 ### Changing the traits
 
 You can rename, add or remove traits in the `traits` list. Each trait has:
 
 - `key`: the field name used on each person
-- `label`: shown in the crime computer
+- `label`: shown in the crime computer and the dossiers
 - `clues`: witness sentences, where `{value}` becomes the person's value
+- optionally `phrases`: how witnesses word a value that doesn't read well on its own. With `"phrases": {"bald": "no hair at all"}`, the computer shows Bald and a witness says "He had no hair at all."
+- optionally `"computer": false`: the crime computer doesn't have this trait, so it can't go on a warrant, but witnesses still mention it and the dossier shows it. `other` works this way: a one-off detail that helps you guess who it is. Write it to follow "he" or "she", like "collects stamps".
 
-Use `{They}`/`{they}`, `{Them}`/`{them}` and `{Their}`/`{their}` for the thief. Stick to verbs that work for he, she and they. Simple past tense is safest ("had", "kept", "ordered"); avoid "was/were" and "is/are".
+Use `{They}`/`{they}`, `{Them}`/`{them}` and `{Their}`/`{their}` for the thief; they become he/him/his or she/her/her.
 
-Inside jokes make the best traits: "Quirk: falling asleep during films", "Hobby: arguing about football", "Food: Mum's pilau".
+Inside jokes make the best traits: "Hobby: arguing about football", "Other: falls asleep during films".
 
 ## Countries and clues: `countries.json`
 
-There are 32 countries with about 215 clues, written to stay accurate. They avoid leaders, populations and records that change, and they include newer facts like Türkiye's 2022 name change.
+There are 33 countries with about 220 clues, written to stay accurate. They avoid leaders, populations and records that change, and they include newer facts like Türkiye's 2022 name change.
 
 Each country has:
 

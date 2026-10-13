@@ -227,9 +227,7 @@ impl Painter {
             })
             .collect();
         let total: f32 = waves.iter().map(|w| w.2).sum();
-        (0..self.w)
-            .map(|x| waves.iter().map(|(f, p, a)| ((x as f32 * f + p).sin() * 0.5 + 0.5) * a).sum::<f32>() / total)
-            .collect()
+        (0..self.w).map(|x| waves.iter().map(|(f, p, a)| ((x as f32 * f + p).sin() * 0.5 + 0.5) * a).sum::<f32>() / total).collect()
     }
 
     /// Distant mountains rising up to `height` above `base`, faded by
@@ -434,11 +432,8 @@ fn generic(p: &mut Painter, country: &Country) {
     if p.rng.below(2) == 0 {
         p.water(horizon + 14, ground, [60, 100, 190]);
     }
-    let walls: [Rgb; 3] = if tropical {
-        [[240, 200, 170], [200, 230, 220], [250, 248, 238]]
-    } else {
-        [[160, 160, 170], [180, 115, 95], [205, 195, 175]]
-    };
+    let walls: [Rgb; 3] =
+        if tropical { [[240, 200, 170], [200, 230, 220], [250, 248, 238]] } else { [[160, 160, 170], [180, 115, 95], [205, 195, 175]] };
     p.buildings(-4, w, ground, (18, 60), &walls, 0.0);
     p.ground(ground, [120, 120, 125]);
     let mut x = p.rng.below(30) as i32;

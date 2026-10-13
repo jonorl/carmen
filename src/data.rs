@@ -5,12 +5,13 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::game::DIFFICULTIES;
+use crate::game::RANKS;
 
 pub const CLUE_TYPES: [&str; 6] = ["flag", "currency", "language", "landmark", "geography", "culture"];
-pub const PRONOUNS: [&str; 3] = ["he", "she", "they"];
+/// A suspect's sex, as on the original's crime computer; witnesses say he or she.
+pub const SEXES: [&str; 2] = ["female", "male"];
 const PRONOUN_KEYS: [&str; 6] = ["They", "they", "Them", "them", "Their", "their"];
-const RESERVED_KEYS: [&str; 5] = ["bio", "catchphrase", "name", "pronoun", "skin"];
+const RESERVED_KEYS: [&str; 5] = ["bio", "catchphrase", "name", "sex", "skin"];
 /// Skin tones a suspect's dossier portrait can have.
 pub const SKIN_TONES: [&str; 6] = ["light", "rosy", "olive", "tan", "brown", "dark"];
 
@@ -39,11 +40,25 @@ pub struct Trait {
     pub key: String,
     pub label: String,
     pub clues: Vec<String>,
+    /// Whether the crime computer has it as a field. Traits it hasn't (like
+    /// "Other") are only for witnesses to mention.
+    pub computer: bool,
+    /// How witnesses word some values, so the computer can say "Bald" while
+    /// a witness says "no hair at all". Keys are lower case.
+    pub phrases: HashMap<String, String>,
+}
+
+impl Trait {
+    /// `value` as witnesses say it.
+    pub fn phrase<'a>(&'a self, value: &'a str) -> &'a str {
+        self.phrases.get(&value.to_lowercase()).map_or(value, String::as_str)
+    }
 }
 
 pub struct Suspect {
     pub name: String,
-    pub pronoun: String,
+    /// "female" or "male".
+    pub sex: String,
     pub traits: HashMap<String, String>,
     pub bio: Option<String>,
     pub catchphrase: Option<String>,
@@ -52,9 +67,13 @@ pub struct Suspect {
 }
 
 impl Suspect {
-    /// A trait value, or the pronoun (the crime computer treats it as a field).
+    /// A trait value, or the sex (the crime computer treats it as a field).
     pub fn get(&self, key: &str) -> &str {
-        if key == "pronoun" { &self.pronoun } else { &self.traits[key] }
+        if key == "sex" { &self.sex } else { &self.traits[key] }
+    }
+
+    pub fn pronoun(&self) -> &'static str {
+        if self.sex == "female" { "she" } else { "he" }
     }
 }
 
@@ -62,7 +81,6 @@ pub struct Data {
     pub countries: Vec<Country>,
     pub traits: Vec<Trait>,
     pub suspects: Vec<Suspect>,
-    pub witness_pronouns: bool,
 }
 
 impl Data {
@@ -99,11 +117,7 @@ fn read_file(path: &Path) -> Result<String, LoadError> {
 
 fn parse(name: &str, text: &str) -> Result<Value, LoadError> {
     serde_json::from_str(text).map_err(|e| {
-        let hint = if e.is_syntax() || e.is_eof() {
-            "\n  (Usually a missing comma, quote or bracket just before that spot.)"
-        } else {
-            ""
-        };
+        let hint = if e.is_syntax() || e.is_eof() { "\n  (Usually a missing comma, quote or bracket just before that spot.)" } else { "" };
         LoadError::Read(format!("{name}: {e}.{hint}"))
     })
 }
@@ -139,10 +153,8 @@ fn names_word(text: &str, word: &str) -> bool {
     let is_word = |c: Option<char>| c.is_some_and(|c| c.is_alphanumeric() || c == '_');
     let boundary = |a: Option<char>, b: Option<char>| is_word(a) != is_word(b);
     let (first, last) = (word.chars().next(), word.chars().next_back());
-    text.match_indices(&word).any(|(i, _)| {
-        boundary(text[..i].chars().next_back(), first)
-            && boundary(last, text[i + word.len()..].chars().next())
-    })
+    text.match_indices(&word)
+        .any(|(i, _)| boundary(text[..i].chars().next_back(), first) && boundary(last, text[i + word.len()..].chars().next()))
 }
 
 /// Return (errors, warnings) for the two data files.
@@ -221,12 +233,9 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
             warnings.push(format!("{place}: only {total} clues. Five or more keeps cases varied."));
         }
     }
-    let need = DIFFICULTIES.iter().map(|d| d.legs).max().unwrap_or(0) + 6;
+    let need = RANKS.iter().map(|d| d.legs).max().unwrap_or(0) + 6;
     if countries.len() < need {
-        errors.push(format!(
-            "countries.json has {} countries; the game needs at least {need}.",
-            countries.len()
-        ));
+        errors.push(format!("countries.json has {} countries; the game needs at least {need}.", countries.len()));
     }
 
     // ---- suspects.json
@@ -245,14 +254,19 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
         };
         let place = format!(r#"suspects.json, trait "{k}""#);
         if keys.contains(&k) || RESERVED_KEYS.contains(&k) {
-            errors.push(format!(
-                "{place}: that key is used twice or is reserved ({}).",
-                RESERVED_KEYS.join(", ")
-            ));
+            errors.push(format!("{place}: that key is used twice or is reserved ({}).", RESERVED_KEYS.join(", ")));
         }
         keys.push(k);
         if text(t.get("label")).is_none() {
             errors.push(format!(r#"{place}: needs a "label" (shown in the crime computer)."#));
+        }
+        if t.get("computer").is_some_and(|c| !c.is_boolean()) {
+            errors.push(format!(r#"{place}: "computer" must be true or false."#));
+        }
+        if let Some(phrases) = t.get("phrases")
+            && !phrases.as_object().is_some_and(|m| m.values().all(|v| text(Some(v)).is_some()))
+        {
+            errors.push(format!(r#"{place}: "phrases" must map values to what witnesses say, like {{"bald": "no hair at all"}}."#));
         }
         let templates = t.get("clues").and_then(Value::as_array);
         let templates: Option<Vec<&str>> = templates.filter(|l| !l.is_empty()).and_then(|l| l.iter().map(Value::as_str).collect());
@@ -261,10 +275,7 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
             continue;
         };
         for t in templates {
-            let mut bad: Vec<_> = placeholders(t)
-                .into_iter()
-                .filter(|p| !PRONOUN_KEYS.contains(p) && *p != "value")
-                .collect();
+            let mut bad: Vec<_> = placeholders(t).into_iter().filter(|p| !PRONOUN_KEYS.contains(p) && *p != "value").collect();
             bad.sort();
             if let Some(b) = bad.first() {
                 errors.push(format!("{place}: unknown placeholder {{{b}}} in: {t}"));
@@ -275,14 +286,12 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
         }
     }
 
-    let use_pronouns = match sdoc.get("witness_pronouns") {
-        None => true,
-        Some(Value::Bool(b)) => *b,
-        Some(_) => {
-            errors.push(r#"suspects.json: "witness_pronouns" must be true or false."#.to_string());
-            true
-        }
-    };
+    // Only the crime computer's fields need to tell people apart.
+    let searchable: Vec<&str> =
+        traits.iter().filter(|t| t.get("computer").and_then(Value::as_bool) != Some(false)).filter_map(|t| text(t.get("key"))).collect();
+    if searchable.is_empty() {
+        errors.push(r#"suspects.json: at least one trait must be on the crime computer."#.to_string());
+    }
     let suspects = match sdoc.get("suspects").and_then(Value::as_array) {
         Some(list) if list.len() >= 2 => list,
         _ => {
@@ -311,9 +320,9 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
         if !names.insert(name) {
             errors.push(format!("{place}: name used twice."));
         }
-        let pronoun = s.get("pronoun").and_then(Value::as_str);
-        if !pronoun.is_some_and(|p| PRONOUNS.contains(&p)) {
-            errors.push(format!(r#"{place}: "pronoun" must be "he", "she" or "they"."#));
+        let sex = value_of(s, "sex");
+        if !SEXES.contains(&sex.as_str()) {
+            errors.push(format!(r#"{place}: "sex" must be "male" or "female"."#));
         }
         if let Some(skin) = s.get("skin")
             && !skin.as_str().is_some_and(|v| SKIN_TONES.contains(&v.trim().to_lowercase().as_str()))
@@ -325,33 +334,26 @@ pub fn validate(cdoc: &Value, sdoc: &Value) -> (Vec<String>, Vec<String>) {
                 errors.push(format!(r#"{place}: missing "{k}"."#));
             }
         }
-        let mut profile: Vec<String> = keys.iter().map(|k| value_of(s, k)).collect();
-        if use_pronouns {
-            profile.insert(0, pronoun.unwrap_or("").to_string());
-        }
+        let mut profile: Vec<String> = searchable.iter().map(|k| value_of(s, k)).collect();
+        profile.insert(0, sex);
         if let Some(other) = profiles.get(&profile) {
             errors.push(format!(
-                "{place}: same {}traits as {other}, so the crime computer could never tell them apart. Change a trait.",
-                if use_pronouns { "pronoun and " } else { "" }
+                "{place}: same sex and crime computer traits as {other}, so the computer could never tell them apart. Change a trait."
             ));
         }
         profiles.insert(profile, name);
     }
-    if use_pronouns {
-        for p in PRONOUNS {
-            let alone: Vec<&str> = suspects
-                .iter()
-                .filter(|s| s.get("pronoun").and_then(Value::as_str) == Some(p))
-                .filter_map(|s| s.get("name").and_then(Value::as_str))
-                .collect();
-            if let [only] = alone[..] {
-                warnings.push(format!(
-                    r#"suspects.json: {only} is the only "{p}", so witnesses saying "{p}" will give them away. Add another "{p}", or set "witness_pronouns" to false so witnesses say "they" for everyone."#
-                ));
-            }
+    for sex in SEXES {
+        let alone: Vec<&str> =
+            suspects.iter().filter(|s| value_of(s, "sex") == sex).filter_map(|s| s.get("name").and_then(Value::as_str)).collect();
+        if let [only] = alone[..] {
+            warnings.push(format!(
+                r#"suspects.json: {only} is the only {sex}, so a witness saying "{}" gives them away."#,
+                if sex == "female" { "she" } else { "he" }
+            ));
         }
     }
-    for k in &keys {
+    for k in &searchable {
         let values: HashSet<String> = suspects.iter().filter(|s| s.is_object()).map(|s| value_of(s, k)).collect();
         if suspects.len() > 2 && values.len() == 1 {
             warnings.push(format!(r#"suspects.json: everyone has the same "{k}", so that clue never helps."#));
@@ -377,19 +379,26 @@ fn build(cdoc: &Value, sdoc: &Value) -> Data {
             lon: c["lon"].as_f64().unwrap_or_default(),
             about: optional(c.get("about")),
             treasures: list(&c["treasures"]),
-            clues: c["clues"]
-                .as_object()
-                .into_iter()
-                .flatten()
-                .map(|(cat, texts)| (cat.clone(), list(texts)))
-                .collect(),
+            clues: c["clues"].as_object().into_iter().flatten().map(|(cat, texts)| (cat.clone(), list(texts))).collect(),
         })
         .collect();
     let traits: Vec<Trait> = sdoc["traits"]
         .as_array()
         .into_iter()
         .flatten()
-        .map(|t| Trait { key: s(&t["key"]), label: s(&t["label"]), clues: list(&t["clues"]) })
+        .map(|t| Trait {
+            key: s(&t["key"]),
+            label: s(&t["label"]),
+            clues: list(&t["clues"]),
+            computer: t.get("computer").and_then(Value::as_bool).unwrap_or(true),
+            phrases: t
+                .get("phrases")
+                .and_then(Value::as_object)
+                .into_iter()
+                .flatten()
+                .map(|(k, v)| (k.trim().to_lowercase(), s(v)))
+                .collect(),
+        })
         .collect();
     let suspects = sdoc["suspects"]
         .as_array()
@@ -397,19 +406,14 @@ fn build(cdoc: &Value, sdoc: &Value) -> Data {
         .flatten()
         .map(|p| Suspect {
             name: s(&p["name"]),
-            pronoun: s(&p["pronoun"]),
+            sex: s(&p["sex"]).trim().to_lowercase(),
             traits: traits.iter().map(|t| (t.key.clone(), s(&p[&t.key]).trim().to_string())).collect(),
             bio: optional(p.get("bio")),
             catchphrase: optional(p.get("catchphrase")),
             skin: optional(p.get("skin")).map(|s| s.trim().to_lowercase()),
         })
         .collect();
-    Data {
-        countries,
-        traits,
-        suspects,
-        witness_pronouns: sdoc.get("witness_pronouns").and_then(Value::as_bool).unwrap_or(true),
-    }
+    Data { countries, traits, suspects }
 }
 
 #[cfg(test)]

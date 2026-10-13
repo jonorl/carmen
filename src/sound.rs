@@ -6,24 +6,47 @@
 use macroquad::audio::{PlaySoundParams, Sound, load_sound_from_bytes, play_sound, stop_sound};
 
 /// 0.7 s of a printer at work, cut from the middle of a burst so it loops.
-const PRINTING: &[u8] = include_bytes!("../assets/sounds/printer.wav");
+const PRINTING: &[u8] = include_bytes!("../assets/sounds/printer.ogg");
 /// One key press.
-const KEY: &[u8] = include_bytes!("../assets/sounds/key.wav");
+const KEY: &[u8] = include_bytes!("../assets/sounds/key.ogg");
 /// One tick of a clock.
-const TICK: &[u8] = include_bytes!("../assets/sounds/tick.wav");
+const TICK: &[u8] = include_bytes!("../assets/sounds/tick.ogg");
 /// Five footsteps over 1.86 s.
-const WALKING: &[u8] = include_bytes!("../assets/sounds/walking.wav");
+const WALKING: &[u8] = include_bytes!("../assets/sounds/walking.ogg");
 /// The chase before an arrest: a sting, the suspect's running feet, a jingle
 /// under "There goes the suspect!", police whistles and shouts, and the
 /// police running after them. 17.6 s.
-const CHASE: &[u8] = include_bytes!("../assets/sounds/chase.wav");
-/// Two of the officer's and the arrested suspect's footsteps, 2.03 s, cut
-/// to loop while they walk to jail.
-const MARCH: &[u8] = include_bytes!("../assets/sounds/march.wav");
-/// The music once the suspect is behind bars: 14.26 s.
-const JAIL: &[u8] = include_bytes!("../assets/sounds/jail.wav");
+const CHASE: &[u8] = include_bytes!("../assets/sounds/chase.ogg");
+/// One footstep on the way to jail, 0.667 s, so that looping it keeps the
+/// officer's pace.
+const FOOTSTEP: &[u8] = include_bytes!("../assets/sounds/footstep.ogg");
+/// The music over the jail when the suspect is caught: 14.2 s, ending just
+/// before the clank.
+const CAPTURED: &[u8] = include_bytes!("../assets/sounds/captured.ogg");
+/// The clank as the prisoner grabs the bars, after the music: 0.55 s.
+const CLANK: &[u8] = include_bytes!("../assets/sounds/clank.ogg");
+/// The sad tune after the chase when the suspect got away: 6.09 s, cut
+/// where the officer's first footstep breaks it off.
+const DISAPPOINT: &[u8] = include_bytes!("../assets/sounds/disappoint.ogg");
+/// The V.I.L.E. henchmen's tunes, one each: the one striding across (4.0 s),
+/// the one sneaking past with a sack (3.2 s) and the one popping up (4.4 s).
+const HENCHMEN: [&[u8]; 3] = [
+    include_bytes!("../assets/sounds/henchman-stride.ogg"),
+    include_bytes!("../assets/sounds/henchman-sneak.ogg"),
+    include_bytes!("../assets/sounds/henchman-popup.ogg"),
+];
+/// The final city's warnings, each its weapon's sound and then a short tune:
+/// an axe spinning in and thudding home (4.9 s), a knife thrown and twanging
+/// (4.1 s), a pistol shot (4.4 s).
+const DANGERS: [&[u8]; 3] = [
+    include_bytes!("../assets/sounds/danger-axe.ogg"),
+    include_bytes!("../assets/sounds/danger-knife.ogg"),
+    include_bytes!("../assets/sounds/danger-gun.ogg"),
+];
+/// Music for travelling, 5 s, looped from take-off until landing.
+const TRAVELLING: &[u8] = include_bytes!("../assets/sounds/travelling.ogg");
 /// The crime computer whirring over a warrant: 2.1 s.
-const COMPUTING: &[u8] = include_bytes!("../assets/sounds/computing.wav");
+const COMPUTING: &[u8] = include_bytes!("../assets/sounds/computing.ogg");
 /// How long the computing recording lasts; the lights flash for as long.
 pub const COMPUTE_SECONDS: f64 = 2.1;
 /// How long the walking recording lasts, so the footprints keep pace with it.
@@ -35,9 +58,16 @@ pub struct Sounds {
     tick: Sound,
     walking: Sound,
     chase: Sound,
-    march: Sound,
-    jail: Sound,
+    footstep: Sound,
+    captured: Sound,
+    clank: Sound,
+    disappoint: Sound,
     computing: Sound,
+    travelling: Sound,
+    henchmen: Vec<Sound>,
+    dangers: Vec<Sound>,
+    /// Whether the travelling music is playing.
+    flying: bool,
     /// Whether the printing loop is playing.
     looping: bool,
     pub on: bool,
@@ -47,7 +77,7 @@ impl Sounds {
     /// None if the audio device can't take the sounds; the game then runs silently.
     pub async fn load() -> Option<Sounds> {
         let load = |bytes: &'static [u8]| async move {
-            read_wav(bytes)?;
+            is_ogg_vorbis(bytes).then_some(())?;
             load_sound_from_bytes(bytes).await.ok()
         };
         Some(Sounds {
@@ -56,9 +86,15 @@ impl Sounds {
             tick: load(TICK).await?,
             walking: load(WALKING).await?,
             chase: load(CHASE).await?,
-            march: load(MARCH).await?,
-            jail: load(JAIL).await?,
+            footstep: load(FOOTSTEP).await?,
+            captured: load(CAPTURED).await?,
+            clank: load(CLANK).await?,
+            disappoint: load(DISAPPOINT).await?,
             computing: load(COMPUTING).await?,
+            travelling: load(TRAVELLING).await?,
+            henchmen: vec![load(HENCHMEN[0]).await?, load(HENCHMEN[1]).await?, load(HENCHMEN[2]).await?],
+            dangers: vec![load(DANGERS[0]).await?, load(DANGERS[1]).await?, load(DANGERS[2]).await?],
+            flying: false,
             looping: false,
             on: true,
         })
@@ -80,6 +116,18 @@ impl Sounds {
             stop_sound(&self.printing);
         }
         self.looping = want;
+    }
+
+    /// Keep the travelling music looping while `travelling`, and stop it
+    /// otherwise. Called every frame of a case, like `printing`.
+    pub fn travelling(&mut self, travelling: bool) {
+        let want = travelling && self.on;
+        if want && !self.flying {
+            play_sound(&self.travelling, PlaySoundParams { looped: true, volume: 0.6 });
+        } else if !want && self.flying {
+            stop_sound(&self.travelling);
+        }
+        self.flying = want;
     }
 
     /// A key pressed at the keyboard.
@@ -114,75 +162,64 @@ impl Sounds {
 
     /// Leaving a case: cut off whatever scene was playing.
     pub fn hush(&mut self) {
-        for sound in [&self.walking, &self.chase, &self.march, &self.jail, &self.computing] {
+        for sound in
+            [&self.walking, &self.chase, &self.footstep, &self.captured, &self.clank, &self.disappoint, &self.computing, &self.travelling]
+        {
+            stop_sound(sound);
+        }
+        self.quiet();
+        self.flying = false;
+    }
+
+    fn looping(&self, sound: &Sound) {
+        if self.on {
+            play_sound(sound, PlaySoundParams { looped: true, volume: 0.7 });
+        }
+    }
+
+    /// Footsteps on the way to jail, over and over until `quiet`.
+    pub fn footsteps(&mut self) {
+        self.looping(&self.footstep);
+    }
+
+    /// The sad tune when the suspect got away.
+    pub fn lament(&mut self) {
+        self.once(&self.disappoint, 0.7);
+    }
+
+    /// The music over the jail when the suspect is caught...
+    pub fn triumph(&mut self) {
+        self.once(&self.captured, 0.7);
+    }
+
+    /// ...and the clank after it.
+    pub fn clank(&mut self) {
+        self.once(&self.clank, 0.7);
+    }
+
+    /// Stop the footsteps and any music still playing, when the walk is over
+    /// or a scene is skipped.
+    pub fn quiet(&mut self) {
+        for sound in [&self.footstep, &self.captured, &self.disappoint].into_iter().chain(&self.henchmen).chain(&self.dangers) {
             stop_sound(sound);
         }
     }
 
-    /// Footsteps, over and over until `jail`.
-    pub fn march(&mut self) {
-        if self.on {
-            play_sound(&self.march, PlaySoundParams { looped: true, volume: 0.7 });
-        }
+    /// A henchman's tune: 0 striding, 1 sneaking, 2 popping up.
+    pub fn henchman(&mut self, kind: usize) {
+        self.once(&self.henchmen[kind], 0.7);
     }
 
-    /// The footsteps stop and the music starts.
-    pub fn jail(&mut self) {
-        stop_sound(&self.march);
-        self.once(&self.jail, 0.7);
+    /// A warning's sound and tune: 0 the axe, 1 the knife, 2 the pistol.
+    pub fn danger(&mut self, kind: usize) {
+        self.once(&self.dangers[kind], 0.7);
     }
 }
 
-/// The samples of a 16-bit PCM WAV file (the first channel, if there are
-/// several), from -1 to 1. None if it isn't one.
-fn read_wav(bytes: &[u8]) -> Option<Vec<f32>> {
-    if bytes.get(0..4)? != b"RIFF" || bytes.get(8..12)? != b"WAVE" {
-        return None;
-    }
-    let (mut pos, mut channels, mut bits) = (12, 1usize, 0u16);
-    while pos + 8 <= bytes.len() {
-        let len = u32::from_le_bytes(bytes.get(pos + 4..pos + 8)?.try_into().ok()?) as usize;
-        let body = bytes.get(pos + 8..pos + 8 + len)?;
-        match bytes.get(pos..pos + 4)? {
-            b"fmt " => {
-                channels = u16::from_le_bytes(body.get(2..4)?.try_into().ok()?) as usize;
-                bits = u16::from_le_bytes(body.get(14..16)?.try_into().ok()?);
-            }
-            b"data" if bits == 16 => {
-                let frame = 2 * channels.max(1);
-                return Some(body.chunks_exact(frame).map(|f| i16::from_le_bytes([f[0], f[1]]) as f32 / 32768.0).collect());
-            }
-            _ => {}
-        }
-        pos += 8 + len + (len & 1); // chunks are padded to an even length
-    }
-    None
-}
-
-#[cfg(test)]
-const RATE: u32 = 44_100;
-
-/// 16-bit mono PCM in a WAV container, for testing read_wav.
-#[cfg(test)]
-fn wav(samples: &[f32]) -> Vec<u8> {
-    let data_len = (samples.len() * 2) as u32;
-    let mut out = Vec::with_capacity(44 + data_len as usize);
-    out.extend(b"RIFF");
-    out.extend((36 + data_len).to_le_bytes());
-    out.extend(b"WAVEfmt ");
-    out.extend(16u32.to_le_bytes()); // fmt chunk size
-    out.extend(1u16.to_le_bytes()); // PCM
-    out.extend(1u16.to_le_bytes()); // mono
-    out.extend(RATE.to_le_bytes());
-    out.extend((RATE * 2).to_le_bytes()); // bytes per second
-    out.extend(2u16.to_le_bytes()); // bytes per frame
-    out.extend(16u16.to_le_bytes()); // bits per sample
-    out.extend(b"data");
-    out.extend(data_len.to_le_bytes());
-    for s in samples {
-        out.extend(((s.clamp(-1.0, 1.0) * i16::MAX as f32) as i16).to_le_bytes());
-    }
-    out
+/// Whether `bytes` look like Ogg Vorbis, the format every sound is in: the
+/// audio libraries fail on anything else.
+fn is_ogg_vorbis(bytes: &[u8]) -> bool {
+    bytes.starts_with(b"OggS") && bytes.get(..64).is_some_and(|head| head.windows(7).any(|w| w == b"\x01vorbis"))
 }
 
 #[cfg(test)]
@@ -190,27 +227,24 @@ mod tests {
     use super::*;
 
     #[test]
-    fn wav_header_matches_the_data() {
-        let bytes = wav(&[0.0, 0.5, -0.5]);
-        assert_eq!(&bytes[0..4], b"RIFF");
-        assert_eq!(u32::from_le_bytes(bytes[4..8].try_into().unwrap()) as usize, bytes.len() - 8);
-        assert_eq!(u32::from_le_bytes(bytes[40..44].try_into().unwrap()), 6);
-    }
-
-    #[test]
-    fn reads_the_printer_recordings() {
-        for (name, bytes) in [("printer.wav", PRINTING), ("key.wav", KEY), ("tick.wav", TICK), ("walking.wav", WALKING), ("chase.wav", CHASE), ("march.wav", MARCH), ("jail.wav", JAIL), ("computing.wav", COMPUTING)] {
-            let samples = read_wav(bytes).unwrap_or_else(|| panic!("{name} is 16-bit PCM"));
-            assert!(samples.iter().any(|s| s.abs() > 0.1), "{name} isn't silent");
+    fn every_sound_is_ogg_vorbis() {
+        let named = [
+            ("printer", PRINTING),
+            ("key", KEY),
+            ("tick", TICK),
+            ("walking", WALKING),
+            ("chase", CHASE),
+            ("footstep", FOOTSTEP),
+            ("captured", CAPTURED),
+            ("clank", CLANK),
+            ("disappoint", DISAPPOINT),
+            ("computing", COMPUTING),
+            ("travelling", TRAVELLING),
+        ];
+        let all = named.into_iter().chain(HENCHMEN.map(|b| ("a henchman", b))).chain(DANGERS.map(|b| ("a warning", b)));
+        for (name, bytes) in all {
+            assert!(is_ogg_vorbis(bytes), "{name}.ogg should be Ogg Vorbis");
         }
+        assert!(!is_ogg_vorbis(b"RIFF....WAVEfmt "));
     }
-
-    #[test]
-    fn wav_round_trip() {
-        let samples = [0.0, 0.5, -0.5, 0.25];
-        let back = read_wav(&wav(&samples)).expect("our own WAV");
-        assert!(samples.iter().zip(&back).all(|(a, b)| (a - b).abs() < 1e-3));
-    }
-
-
 }

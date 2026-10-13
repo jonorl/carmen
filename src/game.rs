@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::data::{Country, Data, PRONOUNS};
+use crate::data::{Country, Data, SEXES};
 use crate::rng::Rng;
 
 pub const GAME_TITLE: &str = "WHERE IN THE WORLD?";
@@ -14,14 +14,17 @@ pub const AGENCY: &str = "Family Bureau of Investigation";
 pub const START_HOUR: i64 = 9; // every case starts Monday 09:00
 const BEDTIME: i64 = 23; // detectives sleep from 23:00 to 07:00
 const WAKE_UP: i64 = 7;
-pub const INTERVIEW_HOURS: [i64; 3] = [1, 2, 3]; // 1st, 2nd and 3rd interview in the same city
-pub const WARRANT_HOURS: i64 = 1; // each run of the crime computer
+pub const INTERVIEW_HOURS: i64 = 3; // each interview
+pub const WARRANT_HOURS: i64 = 3; // each run of the crime computer
 const FLIGHT_KMH: f64 = 800.0; // speed used to turn distance into flight time
 const AIRPORT_HOURS: i64 = 1; // check-in, taxis and so on, added to each flight
 
 #[derive(Clone, Copy)]
-pub struct Difficulty {
+/// A detective's rank, as in the original: it sets how hard their cases are,
+/// and they reach it after `arrests` arrests.
+pub struct Rank {
     pub name: &'static str,
+    pub arrests: u32,
     /// Flights from the crime scene to the hideout.
     pub legs: usize,
     /// Roughly how many wrong turns you can afford.
@@ -30,11 +33,38 @@ pub struct Difficulty {
     pub buffer: i64,
 }
 
-pub const DIFFICULTIES: [Difficulty; 3] = [
-    Difficulty { name: "Rookie", legs: 4, spare_detours: 2, buffer: 12 },
-    Difficulty { name: "Detective", legs: 5, spare_detours: 1, buffer: 6 },
-    Difficulty { name: "Super Sleuth", legs: 6, spare_detours: 0, buffer: 2 },
+pub const RANKS: [Rank; 6] = [
+    Rank { name: "Rookie", arrests: 0, legs: 4, spare_detours: 2, buffer: 12 },
+    Rank { name: "Sleuth", arrests: 1, legs: 4, spare_detours: 2, buffer: 6 },
+    Rank { name: "Private Eye", arrests: 3, legs: 5, spare_detours: 1, buffer: 6 },
+    Rank { name: "Investigator", arrests: 6, legs: 5, spare_detours: 1, buffer: 2 },
+    Rank { name: "Ace Detective", arrests: 10, legs: 6, spare_detours: 1, buffer: 2 },
+    Rank { name: "Super Sleuth", arrests: 15, legs: 6, spare_detours: 0, buffer: 2 },
 ];
+
+/// The rank (an index into `RANKS`) of a detective with `arrests` arrests.
+pub fn rank_for(arrests: u32) -> usize {
+    RANKS.iter().rposition(|r| arrests >= r.arrests).unwrap_or(0)
+}
+
+/// What the printer says once an arrest has taken a detective's tally to
+/// `arrests`: a promotion, or how many more arrests the next one needs.
+pub fn promotion_news(arrests: u32) -> String {
+    let rank = rank_for(arrests);
+    let promoted = rank > rank_for(arrests.saturating_sub(1));
+    let next = RANKS.get(rank + 1).map(|r| (r.name, r.arrests - arrests));
+    let plural = |n: u32| if n == 1 { "arrest" } else { "arrests" };
+    match (promoted, next) {
+        (true, Some((name, n))) => {
+            format!("Congratulations! You have been promoted to {}. {n} more {} and you'll make {name}.", RANKS[rank].name, plural(n))
+        }
+        (true, None) => format!("Congratulations! You have been promoted to {}, the agency's highest rank.", RANKS[rank].name),
+        (false, Some((name, n))) => {
+            format!("{n} more {} and you'll be promoted to {name}.", plural(n))
+        }
+        (false, None) => format!("That makes {arrests} arrests for the agency's top {}.", RANKS[rank].name),
+    }
+}
 
 pub struct Place {
     pub name: &'static str,
@@ -178,6 +208,11 @@ pub fn hour_of_day(t: i64) -> i64 {
     (START_HOUR + t).rem_euclid(24)
 }
 
+/// Whether the hour starting at time t is spent asleep.
+pub fn asleep(t: i64) -> bool {
+    !(WAKE_UP..BEDTIME).contains(&hour_of_day(t))
+}
+
 pub fn duration_text(hours: i64) -> String {
     let (days, hrs) = (hours / 24, hours % 24);
     let plural = |n: i64| if n == 1 { "" } else { "s" };
@@ -223,7 +258,7 @@ pub fn same(a: &str, b: &str) -> bool {
 
 pub struct Game {
     pub data: Rc<Data>,
-    pub diff: Difficulty,
+    pub rank: Rank,
     rng: Rng,
     /// How the briefing addresses the player, e.g. "Detective Sam".
     detective: String,
@@ -257,25 +292,32 @@ pub struct Game {
     pub wrong_turns: u32,
     /// Every city the player has been to, in order, for drawing the journey.
     pub path: Vec<usize>,
+    /// Set by `investigate` when a V.I.L.E. henchman shows himself before an
+    /// interview: which of the original's three, and whether he's the case's
+    /// first (when the player is told what he means). The front end takes it.
+    pub henchman: Option<(usize, bool)>,
+    henchmen: u32,
+    /// Set by `investigate` at a wrong place in the final city: which of the
+    /// original's three warnings to show before the witness (an axe, a knife,
+    /// a pistol). The front end takes it.
+    pub danger: Option<usize>,
     pub log: Vec<Line>,
 }
 
 impl Game {
-    pub fn new(data: Rc<Data>, diff: Difficulty, mut rng: Rng, detective: &str) -> Game {
+    pub fn new(data: Rc<Data>, rank: Rank, mut rng: Rng, detective: &str) -> Game {
         let thief = rng.below(data.suspects.len());
-        let voice = if data.witness_pronouns { data.suspects[thief].pronoun.clone() } else { "they".to_string() };
+        let voice = data.suspects[thief].pronoun().to_string();
         let all: Vec<usize> = (0..data.countries.len()).collect();
-        let route = rng.sample(&all, diff.legs + 1);
+        let route = rng.sample(&all, rank.legs + 1);
         let start = route[0];
         let treasure = rng.choice(&data.countries[start].treasures).clone();
-        let mut warrant: Vec<(String, Option<String>)> = data.traits.iter().map(|t| (t.key.clone(), None)).collect();
-        if data.witness_pronouns {
-            warrant.insert(0, ("pronoun".to_string(), None));
-        }
+        let mut warrant: Vec<(String, Option<String>)> = data.traits.iter().filter(|t| t.computer).map(|t| (t.key.clone(), None)).collect();
+        warrant.insert(0, ("sex".to_string(), None));
         let mut game = Game {
             on_route: route.iter().enumerate().map(|(i, &c)| (c, i)).collect(),
             data,
-            diff,
+            rank,
             rng,
             detective: match detective.trim() {
                 "" => "Detective".to_string(),
@@ -305,6 +347,9 @@ impl Game {
             flights: 0,
             wrong_turns: 0,
             path: vec![start],
+            henchman: None,
+            henchmen: 0,
+            danger: None,
             log: Vec::new(),
         };
         game.needed = game.needed_traits();
@@ -328,17 +373,14 @@ impl Game {
 
     // ---- case planning
 
-    /// The traits that single out the thief (on top of the pronoun), found greedily.
+    /// The crime computer's traits that single out the thief (on top of
+    /// their sex, which every witness gives away), found greedily.
     fn needed_traits(&mut self) -> Vec<String> {
         let data = Rc::clone(&self.data);
         let thief = &data.suspects[self.thief];
-        let mut keys: Vec<String> = data.traits.iter().map(|t| t.key.clone()).collect();
+        let mut keys = self.computer_keys();
         self.rng.shuffle(&mut keys);
-        let mut pool: Vec<_> = data
-            .suspects
-            .iter()
-            .filter(|s| !data.witness_pronouns || s.pronoun == thief.pronoun)
-            .collect();
+        let mut pool: Vec<_> = data.suspects.iter().filter(|s| s.sex == thief.sex).collect();
         let mut needed = Vec::new();
         while pool.len() > 1 && !keys.is_empty() {
             let matching = |k: &str| pool.iter().filter(|s| same(s.get(k), thief.get(k))).count();
@@ -350,9 +392,13 @@ impl Game {
         needed
     }
 
+    fn computer_keys(&self) -> Vec<String> {
+        self.data.traits.iter().filter(|t| t.computer).map(|t| t.key.clone()).collect()
+    }
+
     /// Decide which trait each trail city's witnesses will mention.
     fn plan_traits(&mut self) -> Vec<Vec<String>> {
-        let legs = self.diff.legs;
+        let legs = self.rank.legs;
         let keys: Vec<String> = self.data.traits.iter().map(|t| t.key.clone()).collect();
         let mut slots = vec![1usize; legs];
         let target = (2 * legs).min(keys.len().max(self.needed.len()) + 1);
@@ -389,20 +435,19 @@ impl Game {
 
     /// Time for a careful player (every witness, a few wrong turns) plus a buffer.
     fn compute_deadline(&self) -> i64 {
-        let legs: Vec<i64> = (0..self.diff.legs)
-            .map(|i| flight_hours(self.country(self.route[i]), self.country(self.route[i + 1])))
-            .collect();
+        let legs: Vec<i64> =
+            (0..self.rank.legs).map(|i| flight_hours(self.country(self.route[i]), self.country(self.route[i + 1]))).collect();
         let avg = (legs.iter().sum::<i64>() as f64 / legs.len() as f64).round_ties_even() as i64;
         let mut actions = Vec::new();
         for (i, &leg) in legs.iter().enumerate() {
-            actions.extend(INTERVIEW_HOURS);
-            if i < self.diff.spare_detours {
-                actions.extend([avg, INTERVIEW_HOURS[0], avg]);
+            actions.extend([INTERVIEW_HOURS; 3]);
+            if i < self.rank.spare_detours {
+                actions.extend([avg, INTERVIEW_HOURS, avg]);
             }
             actions.push(leg);
         }
         actions.push(WARRANT_HOURS);
-        actions.extend(INTERVIEW_HOURS);
+        actions.extend([INTERVIEW_HOURS; 3]);
         let mut t = 0;
         for (n, h) in actions.iter().enumerate() {
             t += h;
@@ -410,7 +455,7 @@ impl Game {
                 t = after_sleep(t);
             }
         }
-        t += self.diff.buffer;
+        t += self.rank.buffer;
         if after_sleep(t) != t {
             // Never set a deadline in the middle of the night.
             t = after_sleep(t) + 2;
@@ -436,16 +481,13 @@ impl Game {
         let data = Rc::clone(&self.data);
         let t = data.traits.iter().find(|t| t.key == key).expect("trait key from the data");
         let template = self.rng.choice(&t.clues);
-        fill(template, &self.voice, Some(data.suspects[self.thief].get(key)))
+        fill(template, &self.voice, Some(t.phrase(data.suspects[self.thief].get(key))))
     }
 
     fn pick_clues(&mut self, country: usize, places: [usize; 3]) -> Vec<String> {
         let data = Rc::clone(&self.data);
-        let mut pool: Vec<(&str, &str)> = data.countries[country]
-            .clues
-            .iter()
-            .flat_map(|(cat, texts)| texts.iter().map(move |t| (cat.as_str(), t.as_str())))
-            .collect();
+        let mut pool: Vec<(&str, &str)> =
+            data.countries[country].clues.iter().flat_map(|(cat, texts)| texts.iter().map(move |t| (cat.as_str(), t.as_str()))).collect();
         self.rng.shuffle(&mut pool);
         let mut picked = Vec::new();
         let mut used: Vec<&str> = Vec::new();
@@ -472,12 +514,8 @@ impl Game {
         let voice = self.voice.clone();
         let lines: Vec<Option<String>> = match self.on_route.get(&c).copied() {
             None => self.rng.sample(&NOBODY, 3).into_iter().map(|s| Some(s.to_string())).collect(),
-            Some(idx) if idx == self.diff.legs => {
-                let mut traits = if self.needed.is_empty() {
-                    self.data.traits.iter().map(|t| t.key.clone()).collect()
-                } else {
-                    self.needed.clone()
-                };
+            Some(idx) if idx == self.rank.legs => {
+                let mut traits = if self.needed.is_empty() { self.computer_keys() } else { self.needed.clone() };
                 self.rng.shuffle(&mut traits);
                 let warns = self.rng.sample(&WARNINGS, 3);
                 let mut lines = Vec::new();
@@ -520,16 +558,15 @@ impl Game {
         let here = self.here;
         let idx = self.on_route.get(&here).copied();
         if !self.decoys.contains_key(&here) {
-            let pool: Vec<usize> =
-                (0..self.data.countries.len()).filter(|c| !self.on_route.contains_key(c) && *c != here).collect();
-            let n = if idx == Some(self.diff.legs) { 4 } else { 3 };
+            let pool: Vec<usize> = (0..self.data.countries.len()).filter(|c| !self.on_route.contains_key(c) && *c != here).collect();
+            let n = if idx == Some(self.rank.legs) { 4 } else { 3 };
             let picked = self.rng.sample(&pool, n);
             self.decoys.insert(here, picked);
         }
         let mut dests = self.decoys[&here].clone();
         match idx {
-            None => dests.push(self.route[self.progress]), // the way back to the trail
-            Some(i) if i < self.diff.legs => dests.push(self.route[i + 1]), // the right answer
+            None => dests.push(self.route[self.progress]),                  // the way back to the trail
+            Some(i) if i < self.rank.legs => dests.push(self.route[i + 1]), // the right answer
             _ => {}
         }
         dests.sort_by(|a, b| self.country(*a).city.cmp(&self.country(*b).city));
@@ -539,11 +576,6 @@ impl Game {
     /// Which of the current city's three places you've already investigated.
     pub fn visited_here(&self) -> &[usize] {
         self.visited.get(&self.here).map(Vec::as_slice).unwrap_or(&[])
-    }
-
-    pub fn next_interview_hours(&self) -> i64 {
-        let done = self.visited_here().len();
-        INTERVIEW_HOURS[done.min(INTERVIEW_HOURS.len() - 1)]
     }
 
     // ---- actions
@@ -557,10 +589,11 @@ impl Game {
         };
         self.say(Tone::Heading, format!("=== {} ===", AGENCY.to_uppercase()));
         self.say(Tone::Warn, format!("FLASH! Stolen from {}: {}!", self.country(self.start).label(), self.treasure));
-        self.say(
-            Tone::Plain,
-            format!("Witnesses saw {who} fleeing the scene, and our files say it's someone in the family."),
-        );
+        let saw = match self.treasure.as_str() {
+            "Messi's trophy room" => "After ruling out Cristiano Ronaldo as a suspect, witnesses saw",
+            _ => "Witnesses saw",
+        };
+        self.say(Tone::Plain, format!("{saw} {who} fleeing the scene, and our files say it's someone in the family."));
         self.say(
             Tone::Plain,
             format!(
@@ -571,6 +604,14 @@ impl Game {
                 with_full_stop(clock_text(self.deadline))
             ),
         );
+        let warning = match self.treasure.as_str() {
+            "the EVA01 from Nerv" => Some("Otherwise the Third Impact will be imminent."),
+            "Saggitarus golden cloth" => Some("Otherwise Saori Kido will be in trouble!"),
+            _ => None,
+        };
+        if let Some(warning) = warning {
+            self.say(Tone::Plain, warning);
+        }
         let lines = self.log[start..].to_vec();
         self.arrive_text();
         lines
@@ -648,7 +689,7 @@ impl Game {
             self.speech(place.witness, lines[i].as_deref().unwrap_or_default());
             return;
         }
-        if !self.spend(self.next_interview_hours()) {
+        if !self.spend(INTERVIEW_HOURS) {
             return;
         }
         self.visited.entry(c).or_default().push(i);
@@ -656,6 +697,19 @@ impl Game {
             self.showdown(place.name);
             return;
         };
+        // As in the original: before the first interview in each city on the
+        // trail the player has flown to, a henchman, so they know they're
+        // right; in the final city, a weapon at every wrong place, so they know
+        // the thief is close.
+        let first_here = self.visited[&c].len() == 1;
+        match self.on_route.get(&c) {
+            Some(&idx) if idx == self.rank.legs => self.danger = Some(self.rng.below(3)),
+            Some(&idx) if idx > 0 && first_here => {
+                self.henchman = Some((self.rng.below(3), self.henchmen == 0));
+                self.henchmen += 1;
+            }
+            _ => {}
+        }
         self.say(Tone::Dim, format!("{} at the {}", clock_text(self.t), place.name));
         self.speech(place.witness, statement);
         self.night();
@@ -702,12 +756,9 @@ impl Game {
 
     /// The crime computer's fields: (key, label, every value someone on file has).
     pub fn warrant_fields(&self) -> Vec<(String, String, Vec<String>)> {
-        let mut fields = Vec::new();
-        if self.data.witness_pronouns {
-            let values = PRONOUNS.iter().map(|p| p.to_string()).collect();
-            fields.push(("pronoun".to_string(), "Pronoun".to_string(), values));
-        }
-        for t in &self.data.traits {
+        let sexes = SEXES.iter().map(|s| capitalise(s)).collect();
+        let mut fields = vec![("sex".to_string(), "Sex".to_string(), sexes)];
+        for t in self.data.traits.iter().filter(|t| t.computer) {
             let mut values: Vec<String> = Vec::new();
             for s in &self.data.suspects {
                 let v = s.get(&t.key);
@@ -751,18 +802,27 @@ impl Game {
         let spotted = self.rng.choice(&SPOTTED).replace("{name}", &thief.name);
         self.say(Tone::Bad, format!("!!! At the {place}, {spotted}"));
         match self.warrant_for {
+            // As the original's printer put it, over the empty cell.
             None => {
-                let they = fill("{They}", &thief.pronoun, None);
+                self.say(Tone::Plain, format!("{AGENCY} here."));
+                let they = fill("{They}", thief.pronoun(), None);
                 self.say(
                     Tone::Plain,
-                    format!("...but you have no warrant! {they} gives you a cheeky wave and disappears into the crowd."),
+                    format!(
+                        "You have trailed {} correctly, but you had no warrant. {they} gave you a cheeky wave and walked free.",
+                        thief.name
+                    ),
                 );
                 self.say(Tone::Bad, "CASE LOST.");
             }
             Some(w) if w != self.thief => {
+                self.say(Tone::Plain, format!("{AGENCY} here."));
                 self.say(
                     Tone::Plain,
-                    format!("...but your warrant is for {}! {} laughs and strolls off.", data.suspects[w].name, thief.name),
+                    format!(
+                        "You have trailed {} correctly, but your warrant was for {}. {} laughed and strolled off.",
+                        thief.name, data.suspects[w].name, thief.name
+                    ),
                 );
                 self.say(Tone::Bad, "CASE LOST.");
             }
@@ -784,16 +844,23 @@ impl Game {
                         self.detective
                     ),
                 );
+                let aftermath = match self.treasure.as_str() {
+                    "the ball from the 7-1 defeat to Germany" => {
+                        Some("The Brazilian citizens, however, looked extremely sad to receive this treasure back.")
+                    }
+                    "one trillion bolivares" => {
+                        Some("However, the one trillion bolivares are now worthless due to inflation since last week.")
+                    }
+                    _ => None,
+                };
+                if let Some(aftermath) = aftermath {
+                    self.say(Tone::Plain, aftermath);
+                }
             }
         }
         self.say(
             Tone::Dim,
-            format!(
-                "Time taken: {}   Flights: {}   Wrong turns: {}",
-                duration_text(self.t),
-                self.flights,
-                self.wrong_turns
-            ),
+            format!("Time taken: {}   Flights: {}   Wrong turns: {}", duration_text(self.t), self.flights, self.wrong_turns),
         );
     }
 }
@@ -813,7 +880,7 @@ mod tests {
     /// Follows the right route, interviews everyone, and fills in the warrant
     /// with the thief's full profile in the final city.
     fn play_perfectly(game: &mut Game) {
-        for leg in 0..game.diff.legs {
+        for leg in 0..game.rank.legs {
             for i in 0..3 {
                 game.investigate(i);
             }
@@ -833,11 +900,11 @@ mod tests {
     #[test]
     fn a_careful_player_on_the_right_trail_always_wins() {
         let data = data();
-        for diff in DIFFICULTIES {
+        for rank in RANKS {
             for seed in 0..300 {
-                let mut game = Game::new(Rc::clone(&data), diff, Rng::new(seed), "Test");
+                let mut game = Game::new(Rc::clone(&data), rank, Rng::new(seed), "Test");
                 play_perfectly(&mut game);
-                assert!(game.won, "{} seed {seed} lost: {:?}", diff.name, game.log.last());
+                assert!(game.won, "{} seed {seed} lost: {:?}", rank.name, game.log.last());
             }
         }
     }
@@ -846,7 +913,7 @@ mod tests {
     fn the_same_seed_replays_the_same_case() {
         let data = data();
         let run = || {
-            let mut game = Game::new(Rc::clone(&data), DIFFICULTIES[1], Rng::new(42), "Test");
+            let mut game = Game::new(Rc::clone(&data), RANKS[1], Rng::new(42), "Test");
             game.briefing();
             play_perfectly(&mut game);
             game.log.iter().map(|l| l.text.clone()).collect::<Vec<_>>()
@@ -857,9 +924,9 @@ mod tests {
     #[test]
     fn a_warrant_for_the_wrong_person_loses() {
         let data = data();
-        let mut game = Game::new(Rc::clone(&data), DIFFICULTIES[0], Rng::new(7), "Test");
+        let mut game = Game::new(Rc::clone(&data), RANKS[0], Rng::new(7), "Test");
         let innocent = (0..data.suspects.len()).find(|&s| s != game.thief).unwrap_or(0);
-        for leg in 0..game.diff.legs {
+        for leg in 0..game.rank.legs {
             game.travel(game.route[leg + 1]);
         }
         game.warrant_for = Some(innocent);
@@ -867,6 +934,71 @@ mod tests {
             game.investigate(i);
         }
         assert!(game.over && !game.won);
+    }
+
+    #[test]
+    fn the_warrant_has_sex_and_only_the_computers_traits() {
+        let data = data();
+        let game = Game::new(Rc::clone(&data), RANKS[0], Rng::new(1), "Test");
+        let keys: Vec<&str> = game.warrant.iter().map(|(k, _)| k.as_str()).collect();
+        assert_eq!(keys[0], "sex");
+        for t in &data.traits {
+            assert_eq!(keys.contains(&t.key.as_str()), t.computer, "{}", t.key);
+        }
+        let labels: Vec<String> = game.warrant_fields().into_iter().map(|(_, label, _)| label).collect();
+        assert_eq!(labels[0], "Sex");
+    }
+
+    #[test]
+    fn witnesses_use_a_values_phrase() {
+        let data = data();
+        let hair = data.traits.iter().find(|t| t.key == "hair").expect("a hair trait");
+        assert_eq!(hair.phrase("Bald"), "no hair at all");
+        assert_eq!(hair.phrase("ginger"), "ginger");
+    }
+
+    #[test]
+    fn henchmen_show_before_the_first_interview_in_each_trail_city() {
+        let mut game = Game::new(data(), RANKS[0], Rng::new(3), "Test");
+        game.investigate(0);
+        assert!(game.henchman.take().is_none(), "not where the case starts");
+        game.travel(game.route[1]);
+        game.investigate(0);
+        assert!(matches!(game.henchman.take(), Some((kind, true)) if kind < 3));
+        game.investigate(1);
+        assert!(game.henchman.take().is_none(), "only before the first interview");
+        game.travel(game.route[2]);
+        game.investigate(0);
+        assert!(matches!(game.henchman.take(), Some((_, false))), "the explanation comes once");
+    }
+
+    #[test]
+    fn the_final_city_has_weapons_at_the_wrong_places_and_no_henchmen() {
+        let mut game = Game::new(data(), RANKS[0], Rng::new(3), "Test");
+        for leg in 1..=game.rank.legs {
+            game.travel(game.route[leg]);
+        }
+        let wrong: Vec<usize> = (0..3).filter(|&i| i != game.hideout).collect();
+        for i in wrong {
+            game.investigate(i);
+            assert!(game.henchman.take().is_none());
+            assert!(matches!(game.danger.take(), Some(kind) if kind < 3));
+        }
+        game.investigate(game.hideout);
+        assert!(game.danger.take().is_none(), "the hideout has the chase instead");
+    }
+
+    #[test]
+    fn ranks_rise_with_arrests_and_say_what_comes_next() {
+        assert_eq!(RANKS[rank_for(0)].name, "Rookie");
+        assert_eq!(RANKS[rank_for(1)].name, "Sleuth");
+        assert_eq!(RANKS[rank_for(2)].name, "Sleuth");
+        assert_eq!(RANKS[rank_for(99)].name, "Super Sleuth");
+        assert!(RANKS.windows(3).all(|w| w[2].arrests - w[1].arrests > w[1].arrests - w[0].arrests), "each promotion takes more arrests");
+        assert_eq!(promotion_news(1), "Congratulations! You have been promoted to Sleuth. 2 more arrests and you'll make Private Eye.");
+        assert_eq!(promotion_news(2), "1 more arrest and you'll be promoted to Private Eye.");
+        assert!(promotion_news(15).contains("highest rank"));
+        assert!(promotion_news(16).contains("16 arrests"));
     }
 
     #[test]

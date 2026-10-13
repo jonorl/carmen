@@ -1,31 +1,24 @@
 {
   "_how_to_edit": [
     "Replace these placeholder people with your own family and friends.",
-    "Every suspect needs a name, a pronoun (he, she or they) and a value for every trait.",
-    "No two people may have the same pronoun AND identical traits, or the crime computer can't tell them apart.",
-    "Values work best as short phrases that several people share: two people with red hair, three who love karaoke, and so on.",
-    "You can rename, add or remove traits. Each trait's clues are witness sentences; {value} becomes that person's value.",
-    "In sentences use {They}/{they}, {Them}/{them}, {Their}/{their} and stick to verbs that work for he, she and they (simple past tense is safest: 'had', 'kept', 'ordered').",
-    "bio and catchphrase are optional. The catchphrase is what they say when you catch them.",
-    "skin is optional too: light, rosy, olive, tan, brown or dark, for the photo in their dossier. The rest of the photo (hair, beard, glasses) comes from the words in their traits.",
-    "witness_pronouns: true means witnesses say he/she/they and the crime computer has a Pronoun field (like the original game). If someone is the only 'they' or the only 'she', that gives them away, so set it to false and every witness says 'they'.",
+    "Every suspect needs a name, a sex (male or female) and a value for every trait.",
+    "No two people may have the same sex AND the same crime computer traits, or the computer can't tell them apart.",
+    "Values work best as short words that several people share: two people with black hair, two who get around by bicycle, and so on. The crime computer lists them as written.",
+    "Each trait's clues are witness sentences; {value} becomes that person's value. In sentences, {They}/{they}, {Them}/{them} and {Their}/{their} become he/him/his or she/her/her.",
+    "phrases (optional) say how witnesses word a value when it doesn't read well on its own: the computer shows Bald, a witness says he had no hair at all.",
+    "computer: false marks a trait the crime computer doesn't have. Other is one: witnesses may mention it, and it shows in the dossier, but it can't go on a warrant. Write it to follow 'he' or 'she', like 'collects stamps'.",
+    "catchphrase (optional) is what they say when you catch them. bio (optional) shows as Notes in their dossier.",
+    "skin is optional too: light, rosy, olive, tan, brown or dark, for the drawn portrait of anyone without a photo in assets/suspects/. The rest of that portrait (hair, beard, glasses) comes from the words in their traits.",
     "After editing, run: cargo run -- --check"
   ],
 
-  "witness_pronouns": true,
-
   "traits": [
-    {
-      "key": "hair",
-      "label": "Hair",
-      "clues": [
-        "{They} had {value}.",
-        "You couldn't miss {them}: {they} had {value}."
-      ]
-    },
     {
       "key": "hobby",
       "label": "Hobby",
+      "phrases": {
+        "magnets": "playing with magnets"
+      },
       "clues": [
         "{They} wouldn't stop talking about {value}.",
         "{They} asked if there was anywhere nearby for {value}.",
@@ -33,27 +26,44 @@
       ]
     },
     {
-      "key": "food",
-      "label": "Favourite food",
+      "key": "hair",
+      "label": "Hair",
+      "phrases": {
+        "bald": "no hair at all",
+        "black": "black hair",
+        "brown": "brown hair"
+      },
       "clues": [
-        "{They} ordered a mountain of {value}.",
-        "{They} asked where to get the best {value} in town."
+        "{They} had {value}.",
+        "You couldn't miss {them}: {they} had {value}."
+      ]
+    },
+    {
+      "key": "feature",
+      "label": "Feature",
+      "clues": [
+        "I couldn't help noticing {their} {value}.",
+        "One thing I remember about {them}: {their} {value}."
       ]
     },
     {
       "key": "vehicle",
       "label": "Vehicle",
+      "phrases": {
+        "rollerskates": "roller skate"
+      },
       "clues": [
-        "{They} showed me a photo of {their} {value}.",
-        "{They} complained about missing {their} {value} back home."
+        "{They} said nothing beats getting around by {value}.",
+        "How did {they} get here? By {value}, {they} said."
       ]
     },
     {
-      "key": "quirk",
-      "label": "Quirk",
+      "key": "other",
+      "label": "Other",
+      "computer": false,
       "clues": [
-        "{They} couldn't stop {value}.",
-        "{They} kept {value} the whole time."
+        "Funny thing about {them}: {they} {value}.",
+        "I'll tell you one more thing: {they} {value}."
       ]
     }
   ],
@@ -61,69 +71,103 @@
   "suspects": [
     {
       "name": "Jon Orlo",
-      "pronoun": "he",
+      "sex": "male",
+      "hobby": "gadgets",
       "hair": "bald",
-      "hobby": "videogames",
-      "food": "pizza",
-      "vehicle": "road bicycle",
-      "quirk": "Pretending to know some japanese",
-      "bio": "Jon needs to get a job otherwise he'll resort to thieven and copying old videogames from the 90s.",
+      "feature": "glasses",
+      "vehicle": "bicycle",
+      "other": "pretends to know some Japanese",
       "catchphrase": "Omae wa mo, shindeiru!"
     },
     {
       "name": "Rachel Kiernan",
-      "pronoun": "she",
-      "hair": "wavy brown hair",
-      "hobby": "travelling",
-      "food": "spicy pasta",
-      "vehicle": "cargo bicyle",
-      "quirk": "Being unoriginal at ordering food in a restaurant",
-      "bio": "Loves travelling solving humanitarian crises... and stealing national treasures!",
+      "sex": "female",
+      "hobby": "yoga",
+      "hair": "brown",
+      "feature": "green eyes",
+      "vehicle": "bicycle",
+      "other": "can never decide what to order in a restaurant",
       "catchphrase": "Are we going to a restaurant? If so, I'll order the same thing as you."
     },
     {
       "name": "Isabela Orlo",
-      "pronoun": "she",
-      "hair": "black hair",
-      "hobby": "building blocks",
-      "food": "granola",
+      "sex": "female",
+      "hobby": "magnets",
+      "hair": "black",
+      "feature": "short stature",
       "vehicle": "rollerskates",
-      "quirk": "Biligual English / Spanish",
-      "bio": "The eldest daughter in the Orlo clan, learning the thieving skills from her parents",
+      "other": "speaks English and Spanish fluently",
       "catchphrase": "Look at what Lucas is doing!"
     },
     {
       "name": "Lucas Orlo",
-      "pronoun": "he",
-      "hair": "brown hair",
-      "hobby": "eating",
-      "food": "pasta",
+      "sex": "male",
+      "hobby": "magnets",
+      "hair": "brown",
+      "feature": "green eyes",
       "vehicle": "scooter",
-      "quirk": "playing with magnet tiles",
-      "bio": "The youngest of the Orlo clan, got into thieven just to copycat his sister.",
-      "catchphrase": "Mamaaaaaa"
+      "other": "has big cheeks",
+      "catchphrase": "Where is my Mamiiiiii."
     },
     {
       "name": "Uncle Erich",
-      "pronoun": "he",
-      "hair": "bald hair, beard",
-      "hobby": "playmobile collecting",
-      "food": "pizza",
-      "vehicle": "convertible",
-      "quirk": "Can't be bothered to have a quirk",
-      "bio": "The mysterious uncle who resotrs to thieveing to sustain his hobby",
+      "sex": "male",
+      "hobby": "watching terrible films",
+      "hair": "bald",
+      "feature": "beard",
+      "vehicle": "public transport",
+      "other": "collects Playmobil",
       "catchphrase": "Es lo que hay."
     },
     {
       "name": "Mutti Orlo",
-      "pronoun": "she",
-      "hair": "dark hair",
-      "hobby": "gambling",
-      "food": "ceviche",
-      "vehicle": "convertible",
-      "quirk": "playing with magnet tiles",
-      "bio": "The grandma of the Orlo clan, when she's not thieven, she's looking after the grandkids",
-      "catchphrase": "Where's the tabasco?."
+      "sex": "female",
+      "hobby": "yoga",
+      "hair": "black",
+      "feature": "short stature",
+      "vehicle": "public transport",
+      "other": "has metaphysical magnetic powers",
+      "catchphrase": "Esto se cura con imanes."
+    },
+    {
+      "name": "Pepe Senshu",
+      "sex": "male",
+      "hobby": "video games",
+      "hair": "black",
+      "feature": "glasses",
+      "vehicle": "car",
+      "other": "really dislikes women called Sofia",
+      "catchphrase": "Shōryūken o yaburanu kagiri, omae ni kachime wa nai!"
+    },
+    {
+      "name": "Leo Surme",
+      "sex": "male",
+      "hobby": "video games",
+      "hair": "black",
+      "feature": "beard",
+      "vehicle": "car",
+      "other": "normally takes his dog for walks that last all night",
+      "catchphrase": "El perro pego el pedazo!"
+    },
+    {
+      "name": "Agus Forwardslash",
+      "sex": "male",
+      "hobby": "watching terrible films",
+      "hair": "brown",
+      "feature": "short stature",
+      "vehicle": "rollerskates",
+      "other": "is an Apple enthusiast, and not the healthy kind",
+      "catchphrase": "Esto con la terminal de UNIX se arregla"
+    },
+    {
+      "name": "Luigi Visin",
+      "sex": "male",
+      "hobby": "gadgets",
+      "hair": "black",
+      "feature": "beard",
+      "vehicle": "scooter",
+      "other": "showers with a kitchen sponge",
+      "catchphrase": "Me van a llevar a Rafaela? Eso esta como a 20 Susanas de aca"
     }
   ]
 }

@@ -10,8 +10,7 @@ pub struct Land {
 
 impl Land {
     pub fn load() -> Land {
-        let geo: serde_json::Value =
-            serde_json::from_str(include_str!("../assets/ne_110m_land.geojson")).unwrap_or_default();
+        let geo: serde_json::Value = serde_json::from_str(include_str!("../assets/ne_110m_land.geojson")).unwrap_or_default();
         let point = |p: &serde_json::Value| Some((p.get(0)?.as_f64()? as f32, p.get(1)?.as_f64()? as f32));
         let mut rings = Vec::new();
         for feature in geo["features"].as_array().into_iter().flatten() {

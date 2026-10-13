@@ -109,14 +109,9 @@ fn look(witness: &str) -> Look {
             top: Top::ShirtTie([180, 40, 50]),
             ..base
         },
-        "Check-in agent" => Look {
-            skin: TAN,
-            hair: [30, 24, 24],
-            hair_style: Hair::Bun,
-            clothes: [40, 54, 130],
-            top: Top::Scarf([220, 50, 60]),
-            ..base
-        },
+        "Check-in agent" => {
+            Look { skin: TAN, hair: [30, 24, 24], hair_style: Hair::Bun, clothes: [40, 54, 130], top: Top::Scarf([220, 50, 60]), ..base }
+        }
         "Librarian" => Look {
             skin: DEEP,
             hair: [200, 200, 205],
@@ -144,22 +139,12 @@ fn look(witness: &str) -> Look {
             top: Top::Apron([235, 230, 210]),
             ..base
         },
-        "Hotel concierge" => Look {
-            skin: BROWN,
-            hair: [24, 20, 20],
-            hat: Hat::Pillbox([190, 30, 40]),
-            clothes: [140, 28, 40],
-            top: Top::BowTie,
-            ..base
-        },
-        "Ticket seller" => Look {
-            skin: PALE,
-            hair: [196, 96, 40],
-            hair_style: Hair::Long,
-            clothes: [250, 130, 30],
-            top: Top::HiVis,
-            ..base
-        },
+        "Hotel concierge" => {
+            Look { skin: BROWN, hair: [24, 20, 20], hat: Hat::Pillbox([190, 30, 40]), clothes: [140, 28, 40], top: Top::BowTie, ..base }
+        }
+        "Ticket seller" => {
+            Look { skin: PALE, hair: [196, 96, 40], hair_style: Hair::Long, clothes: [250, 130, 30], top: Top::HiVis, ..base }
+        }
         "Barista" => Look {
             skin: BROWN,
             hair: [30, 24, 22],
@@ -243,10 +228,7 @@ fn suspect_look(s: &Suspect) -> Look {
         (&["purple"], [140, 80, 190]),
     ];
     let natural = [[30, 24, 24], [70, 46, 30], [100, 64, 40], [200, 160, 90]];
-    let hair_colour = colours
-        .iter()
-        .find(|(names, _)| any(&hair, names))
-        .map_or(natural[rng.below(natural.len())], |(_, c)| *c);
+    let hair_colour = colours.iter().find(|(names, _)| any(&hair, names)).map_or(natural[rng.below(natural.len())], |(_, c)| *c);
     let hair_style = if any(&hair, &["bald"]) {
         Hair::Bald
     } else if any(&hair, &["bun"]) {
@@ -258,11 +240,7 @@ fn suspect_look(s: &Suspect) -> Look {
     } else if any(&hair, &["short"]) {
         Hair::Short
     } else {
-        match s.pronoun.as_str() {
-            "she" => Hair::Long,
-            "they" => Hair::Curly,
-            _ => Hair::Short,
-        }
+        if s.sex == "female" { Hair::Long } else { Hair::Short }
     };
     let beard = if any(&all, &["beard", "bearded"]) {
         Beard::Full

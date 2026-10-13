@@ -15,10 +15,12 @@ mod people;
 mod pixels;
 mod places;
 mod printer;
+mod progress;
 mod rng;
 mod scene;
 mod sound;
 mod sprites;
+mod touch;
 mod ui;
 
 use std::collections::HashMap;
@@ -29,38 +31,41 @@ use macroquad::experimental::coroutines::{Coroutine, start_coroutine};
 use macroquad::prelude::*;
 
 use data::{Data, LoadError};
-use jail::{Eyes, Jail};
 use game::{
-    AGENCY, DIFFICULTIES, GAME_TITLE, Game, INTERVIEW_HOURS, Line, PLACES, Tone, WARRANT_HOURS, clock_text, flight_hours,
-    hour_of_day,
+    AGENCY, GAME_TITLE, Game, INTERVIEW_HOURS, Line, PLACES, RANKS, Tone, WARRANT_HOURS, asleep, clock_text, flight_hours, hour_of_day,
+    promotion_news, rank_for,
 };
+use jail::Jail;
 use map::{Land, MapView};
 use printer::Printer;
+use progress::Progress;
 use rng::Rng;
 use scene::TimeOfDay;
 use sound::Sounds;
+use sprites::Cast;
 use ui::{
-    BIG, CYAN, DARK, GREY, H, INK, Icon, LIME, NAVY, PAPER, RED, SMALL, Ui, W, YELLOW, draw_pointer, fill, frame, inner,
-    line_height, outline, rounded, wrap_cols,
+    BIG, CYAN, DARK, GREY, INK, Icon, LIME, NAVY, PAPER, RED, SMALL, Ui, YELLOW, draw_pointer, fill, frame, inner, line_height, outline,
+    rounded, wrap_cols,
 };
 
-const USAGE: &str = "Usage: carmen [--check] [--seed N] [--difficulty 1|2|3] [--data FOLDER]
+const USAGE: &str = "Usage: carmen [--check] [--seed N] [--rank 1-6] [--data FOLDER]
 
   --check          check the data files and exit
   --seed N         replay the same case by using the same number
-  --difficulty N   1 Rookie, 2 Detective, 3 Super Sleuth (Enter picks it at headquarters)
+  --rank N         play cases as hard as rank N (1 Rookie ... 6 Super Sleuth),
+                   whatever your rank; arrests still count towards promotion
   --data FOLDER    folder holding countries.json and suspects.json
                    (default: the current folder if it has them, otherwise the built-in copies)";
 
 struct Args {
     data: Option<PathBuf>,
     seed: Option<u64>,
-    difficulty: Option<usize>,
+    rank: Option<usize>,
     check: bool,
 }
 
 fn parse_args() -> Result<Args, String> {
-    let mut args = Args { data: None, seed: None, difficulty: None, check: false };
+    let mut args = Args { data: None, seed: None, rank: None, check: false };
     let mut it = std::env::args().skip(1);
     while let Some(arg) = it.next() {
         let mut value = |name: &str| it.next().ok_or(format!("{name} needs a value."));
@@ -68,9 +73,9 @@ fn parse_args() -> Result<Args, String> {
             "--check" => args.check = true,
             "--data" => args.data = Some(PathBuf::from(value("--data")?)),
             "--seed" => args.seed = Some(value("--seed")?.parse().map_err(|_| "--seed needs a whole number.")?),
-            "--difficulty" => match value("--difficulty")?.as_str() {
-                d @ ("1" | "2" | "3") => args.difficulty = Some(d.parse::<usize>().unwrap_or(1) - 1),
-                _ => return Err("--difficulty must be 1, 2 or 3.".to_string()),
+            "--rank" => match value("--rank")?.parse::<usize>() {
+                Ok(n @ 1..=6) => args.rank = Some(n - 1),
+                _ => return Err("--rank must be 1 to 6.".to_string()),
             },
             "-h" | "--help" => {
                 println!("{USAGE}");
@@ -130,8 +135,8 @@ fn main() {
     }
     let conf = Conf {
         window_title: "Where in the World?".to_string(),
-        window_width: (W * 2.0) as i32,
-        window_height: (H * 2.0) as i32,
+        window_width: (WIDE.w * 2.0) as i32,
+        window_height: (WIDE.h * 2.0) as i32,
         ..Default::default()
     };
     macroquad::Window::from_config(conf, run(Rc::new(data), args));
@@ -143,12 +148,61 @@ fn main() {
 // a picture below it, the text panel on the right and four buttons under it.
 // A menu bar runs across the top, as in the original.
 const MENU_H: f32 = 16.0;
-const CLOCK: Rect = Rect { x: 4.0, y: 18.0, w: 288.0, h: 48.0 };
-const PICTURE: Rect = Rect { x: 4.0, y: 70.0, w: 288.0, h: 286.0 };
-const TEXT: Rect = Rect { x: 298.0, y: 18.0, w: 338.0, h: 276.0 };
+
+/// Where everything goes: side by side on wide screens, as in the original,
+/// or stacked on tall ones such as phones held upright, with the clock and
+/// picture above the text panel and buttons. Each part is the same size in
+/// both, so only positions change.
+struct Layout {
+    /// The size everything is drawn at before scaling to the window.
+    w: f32,
+    h: f32,
+    clock: Rect,
+    picture: Rect,
+    text: Rect,
+    button_y: f32,
+    /// The "where to investigate?" window and a suspect's dossier.
+    picker: Rect,
+    dossier: Rect,
+}
+
+const WIDE: Layout = Layout {
+    w: 640.0,
+    h: 360.0,
+    clock: Rect { x: 4.0, y: 18.0, w: 288.0, h: 48.0 },
+    picture: Rect { x: 4.0, y: 70.0, w: 288.0, h: 286.0 },
+    text: Rect { x: 298.0, y: 18.0, w: 338.0, h: 276.0 },
+    button_y: 298.0,
+    picker: Rect { x: 130.0, y: 92.0, w: 380.0, h: 204.0 },
+    dossier: Rect { x: 34.0, y: 66.0, w: 568.0, h: 282.0 },
+};
+
+const TALL: Layout = Layout {
+    w: 352.0,
+    h: 702.0,
+    clock: Rect { x: 32.0, y: 18.0, w: 288.0, h: 48.0 },
+    picture: Rect { x: 32.0, y: 70.0, w: 288.0, h: 286.0 },
+    text: Rect { x: 7.0, y: 360.0, w: 338.0, h: 276.0 },
+    button_y: 640.0,
+    picker: Rect { x: 4.0, y: 110.0, w: 344.0, h: 204.0 },
+    dossier: Rect { x: 4.0, y: 60.0, w: 344.0, h: 470.0 },
+};
+
+thread_local! {
+    /// Whether this frame uses `TALL`: chosen from the window's shape each frame.
+    static TALL_NOW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+fn lay() -> &'static Layout {
+    if TALL_NOW.get() { &TALL } else { &WIDE }
+}
+
+/// The whole drawing area, for clicks anywhere.
+fn everywhere() -> Rect {
+    Rect::new(0.0, 0.0, lay().w, lay().h)
+}
 /// Postcards are painted taller than the picture frame; the top of the sky is cropped.
 const POSTCARD_H: f32 = 282.0;
-const BUTTON_Y: f32 = 298.0;
 const BUTTON_W: f32 = 80.0;
 const BUTTON_H: f32 = 58.0;
 const BUTTONS: [Icon; 4] = [Icon::Notes, Icon::Depart, Icon::Investigate, Icon::Crime];
@@ -157,7 +211,7 @@ const BUTTONS: [Icon; 4] = [Icon::Notes, Icon::Depart, Icon::Investigate, Icon::
 const CAN_QUIT: bool = !cfg!(target_arch = "wasm32");
 
 /// How long the clock box takes to show each hour passing.
-const HOUR_SECONDS: f64 = 0.64;
+const HOUR_SECONDS: f64 = 0.32;
 
 /// Characters per second for the typewriter effect.
 const TYPING_SPEED: f64 = 90.0;
@@ -188,19 +242,58 @@ enum Panel {
     Story(Vec<Line>),
     /// The suspect running for it and the police after them, before the
     /// arrest is told (`then`).
-    Chase { started: f64, then: Vec<Line> },
-    /// With the right warrant: the suspect marched off by an officer...
-    March { started: f64, then: Vec<Line> },
-    /// ...and locked up, while the end of the case prints beside the jail.
-    Jailed { started: f64 },
+    Chase {
+        started: f64,
+        then: Vec<Line>,
+    },
+    /// After the chase: the suspect marched off by an officer, or with the
+    /// wrong warrant (or none) the officer trudging off alone...
+    /// `cued` counts the walk's sound cues played so far.
+    March {
+        started: f64,
+        then: Vec<Line>,
+        cued: usize,
+    },
+    /// ...and the jail, with the suspect in it or empty. `ending` is the end
+    /// of the case, until the moment it starts printing beside the jail;
+    /// `cued` counts the jail's sound cues played so far.
+    Jailed {
+        started: f64,
+        ending: Option<Vec<String>>,
+        cued: usize,
+    },
+    /// A V.I.L.E. henchman (`kind` 0 to 2) showing himself before the first
+    /// interview in a trail city, then the interview (`then`). `tell` adds the
+    /// line that says what he means, the first time; `cued` counts his tune.
+    Henchman {
+        started: f64,
+        kind: usize,
+        tell: bool,
+        then: Box<Panel>,
+        cued: usize,
+    },
+    /// A warning (`kind` 0 to 2: an axe, a knife, a pistol) before a wrong
+    /// place's witness in the final city, then the interview (`then`).
+    Danger {
+        started: f64,
+        kind: usize,
+        then: Box<Panel>,
+        cued: usize,
+    },
     /// A witness talking: their portrait, and what they said in a bubble.
     /// `notes` are the other lines the interview produced (the time, a night's sleep).
-    Interview { place: usize, said: String, notes: Vec<Line> },
+    Interview {
+        place: usize,
+        said: String,
+        notes: Vec<Line>,
+    },
     Depart,
     Flying,
     Notes,
     /// The crime computer's menu, or the list of values for one field.
-    Crime { editing: Option<usize> },
+    Crime {
+        editing: Option<usize>,
+    },
     Help,
     GiveUp,
 }
@@ -215,6 +308,8 @@ struct Row {
 
 struct Case {
     game: Game,
+    /// After an arrest: what the printer says about the detective's promotion.
+    promotion: Option<String>,
     /// The printer beside the crime computer, where warrants come out.
     printer: Printer,
     places: [usize; 3],
@@ -237,6 +332,8 @@ struct Case {
     /// The time the clock box shows, catching up with the game an hour at a time.
     shown_t: i64,
     next_tick: f64,
+    /// The hours spent on the last flight, which the clock runs through quickly.
+    flown: std::ops::Range<i64>,
     /// The departure map, and the city it was made for.
     map: Option<(usize, MapView, Texture2D)>,
 }
@@ -261,9 +358,11 @@ impl Case {
             hover_dest: None,
             picking: false,
             computing: None,
+            promotion: None,
             walking: None,
             shown_t: 0,
             next_tick: 0.0,
+            flown: 0..0,
             map: None,
         };
         case.refresh();
@@ -324,7 +423,9 @@ struct Hq {
 }
 
 impl Hq {
-    fn new(returning: Option<&str>) -> Hq {
+    /// Headquarters, with `returning` the detective coming back from a case
+    /// and their arrests so far.
+    fn new(returning: Option<(&str, u32)>) -> Hq {
         let mut printer = Printer::new();
         printer.print(&format!("{GAME_TITLE}\n\n{}\n\n", AGENCY.to_uppercase()));
         let step = match returning {
@@ -332,8 +433,8 @@ impl Hq {
                 printer.print("Welcome to headquarters.\n\nDetective at keyboard, please identify yourself:\n");
                 Step::Name
             }
-            Some(name) => {
-                printer.print(&format!("Welcome back, {}.\n\nChoose your next assignment.", display_name(name)));
+            Some((name, arrests)) => {
+                printer.print(&format!("Welcome back, {}.\n\nYour rank: {}.", display_name(name), RANKS[rank_for(arrests)].name));
                 Step::Assignment
             }
         };
@@ -354,7 +455,7 @@ enum Screen {
 }
 
 enum Action {
-    Start(usize),
+    Start,
     Continue,
     Show(Panel),
     /// Open or close the "where to investigate?" window.
@@ -363,10 +464,10 @@ enum Action {
     Investigate(usize),
     /// ...and talk to the witness there.
     Arrive(usize),
-    /// The chase is over: march the suspect off, or tell how it went wrong.
+    /// The chase is over: off to jail, with or without the suspect.
     EndChase,
-    /// The march is over: the suspect is behind bars and the printer tells
-    /// how the case ended.
+    /// The walk is over: the jail shows and the printer tells how the case
+    /// ended.
     Jail,
     Fly(usize),
     /// Start computing a warrant: the lights flash with the sound...
@@ -399,6 +500,7 @@ struct App {
     /// Each suspect's dossier photo.
     mugshots: Vec<Texture2D>,
     jail: Jail,
+    cast: Cast,
     /// Which menu in the menu bar is open.
     menu: Option<usize>,
     /// The suspect whose dossier is open on top of the screen.
@@ -409,7 +511,10 @@ struct App {
     scenes: HashMap<(usize, TimeOfDay), Texture2D>,
     master: Rng,
     name: String,
-    preset: Option<usize>,
+    /// Each detective's arrests, kept between games.
+    progress: Progress,
+    /// From --rank: case difficulty whatever the detective's rank.
+    rank_override: Option<usize>,
     screen: Screen,
     quit: bool,
 }
@@ -431,6 +536,7 @@ async fn run(data: Rc<Data>, args: Args) {
         portraits: people::portraits(),
         mugshots: people::suspect_portraits(&data.suspects),
         jail: Jail::new(),
+        cast: Cast::new(),
         menu: None,
         dossier: None,
         loading_sounds: Some(start_coroutine(Sounds::load())),
@@ -438,37 +544,46 @@ async fn run(data: Rc<Data>, args: Args) {
         // std's SystemTime panics in the browser; miniquad's clock works on both.
         master: Rng::new(args.seed.unwrap_or_else(|| (miniquad::date::now() * 1e6) as u64)),
         name: String::new(),
-        preset: args.difficulty,
+        progress: Progress::load(),
+        rank_override: args.rank,
         screen: Screen::Hq(Box::new(Hq::new(None))),
         quit: false,
     };
 
-    // Everything is drawn at 640x360 into this texture, then scaled up to
-    // the window with hard pixel edges.
-    let canvas = render_target(W as u32, H as u32);
-    canvas.texture.set_filter(FilterMode::Nearest);
-    let mut camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, W, H));
-    camera.render_target = Some(canvas.clone());
+    // Everything is drawn at the layout's size into one of these textures,
+    // then scaled up to the window with hard pixel edges.
+    let target = |l: &Layout| {
+        let canvas = render_target(l.w as u32, l.h as u32);
+        canvas.texture.set_filter(FilterMode::Nearest);
+        let mut camera = Camera2D::from_display_rect(Rect::new(0.0, 0.0, l.w, l.h));
+        camera.render_target = Some(canvas.clone());
+        (canvas, camera)
+    };
+    let (wide, tall) = (target(&WIDE), target(&TALL));
     show_mouse(false);
 
     loop {
         let (sw, sh) = (screen_width(), screen_height());
-        let fit = (sw / W).min(sh / H);
+        // A window taller than it's wide (a phone held upright) stacks the halves.
+        TALL_NOW.set(sh > sw);
+        let ((canvas, camera), l) = if sh > sw { (&tall, &TALL) } else { (&wide, &WIDE) };
+        let fit = (sw / l.w).min(sh / l.h);
         // Whole-number scaling keeps every pixel the same size; below 2x
         // (small browser windows) fit exactly instead.
         let scale = if fit >= 2.0 { fit.floor() } else { fit };
-        let offset = vec2(((sw - W * scale) / 2.0).floor(), ((sh - H * scale) / 2.0).floor());
+        let offset = vec2(((sw - l.w * scale) / 2.0).floor(), ((sh - l.h * scale) / 2.0).floor());
 
-        set_camera(&camera);
+        set_camera(camera);
         clear_background(INK);
-        app.ui.begin_frame(offset, scale);
+        app.ui.begin_frame(offset, scale, l.w);
         app.frame();
         draw_pointer(app.ui.mouse);
+        touch::end_frame();
 
         set_default_camera();
         clear_background(INK);
         // Textures rendered off-screen come out upside down.
-        let params = DrawTextureParams { dest_size: Some(vec2(W * scale, H * scale)), flip_y: true, ..Default::default() };
+        let params = DrawTextureParams { dest_size: Some(vec2(l.w * scale, l.h * scale)), flip_y: true, ..Default::default() };
         draw_texture_ex(&canvas.texture, offset.x, offset.y, WHITE, params);
         if app.quit {
             break;
@@ -498,21 +613,22 @@ impl App {
         // The screen ignores input under an open menu or dossier.
         self.ui.enabled = self.menu.is_none() && self.dossier.is_none();
         let mut action = match &mut self.screen {
-            Screen::Hq(hq) => hq_screen(&mut self.ui, hq, &mut self.name, self.preset, &mut self.sounds),
-            Screen::Case(case) if case.computing.is_some_and(|t| get_time() - t >= sound::COMPUTE_SECONDS) => {
-                Some(Action::Computed)
-            }
+            Screen::Hq(hq) => hq_screen(&mut self.ui, hq, &mut self.name, &self.progress, self.rank_override, &mut self.sounds),
+            Screen::Case(case) if case.computing.is_some_and(|t| get_time() - t >= sound::COMPUTE_SECONDS) => Some(Action::Computed),
             Screen::Case(case) if walked(case) => case.walking.map(|(place, _)| Action::Arrive(place)),
             Screen::Case(case) => {
                 if let Some(to) = landed(case) {
                     let before = case.game.log.len();
+                    let took_off = case.game.t;
+                    let hours = flight_hours(case.game.country(case.game.here), case.game.country(to));
+                    case.flown = took_off..took_off + hours;
                     case.game.travel(to);
                     case.refresh();
                     let story = case.story_since(before);
                     case.show(Panel::Story(story));
                 }
-                case.sync_rows(&self.ui, inner(TEXT).w - 4.0);
-                let art = Art { places: &self.place_art, portraits: &self.portraits, jail: &self.jail };
+                case.sync_rows(&self.ui, inner(lay().text).w - 4.0);
+                let art = Art { places: &self.place_art, portraits: &self.portraits, jail: &self.jail, cast: &self.cast };
                 case_screen(&mut self.ui, &self.land, &mut self.scenes, art, case, &mut self.sounds)
             }
         };
@@ -534,13 +650,16 @@ impl App {
 
     fn apply(&mut self, action: Action) {
         match action {
-            Action::Start(d) => {
-                let Screen::Hq(hq) = &mut self.screen else { return };
+            Action::Start => {
+                let Screen::Hq(hq) = &mut self.screen else {
+                    return;
+                };
                 let rng = Rng::new(self.master.next_u64());
-                let mut game = Game::new(Rc::clone(&self.data), DIFFICULTIES[d], rng, &self.name);
+                let rank = self.rank_override.unwrap_or_else(|| rank_for(self.progress.arrests(&self.name)));
+                let mut game = Game::new(Rc::clone(&self.data), RANKS[rank], rng, &self.name);
                 let lines = game.briefing();
                 hq.printer.finish();
-                hq.printer.print(&format!("\n\nAssignment: {}\n", DIFFICULTIES[d].name));
+                hq.printer.print(&format!("\n\nAssignment for a {}:\n", RANKS[rank].name));
                 for (n, line) in lines.iter().filter(|l| l.tone != Tone::Heading).enumerate() {
                     if n > 0 {
                         hq.printer.pause();
@@ -551,8 +670,12 @@ impl App {
                 hq.step = Step::Briefing;
             }
             Action::Continue => {
-                let Screen::Hq(hq) = &mut self.screen else { return };
-                let Some((game, briefed)) = hq.case.take() else { return };
+                let Screen::Hq(hq) = &mut self.screen else {
+                    return;
+                };
+                let Some((game, briefed)) = hq.case.take() else {
+                    return;
+                };
                 let arrival = game.log[briefed..].iter().skip_while(|l| l.text.is_empty()).cloned().collect();
                 self.screen = Screen::Case(Box::new(Case::new(game, Panel::Story(arrival))));
             }
@@ -560,7 +683,8 @@ impl App {
                 if let Some(s) = &mut self.sounds {
                     s.hush();
                 }
-                self.screen = Screen::Hq(Box::new(Hq::new(Some(&self.name))));
+                let arrests = self.progress.arrests(&self.name);
+                self.screen = Screen::Hq(Box::new(Hq::new(Some((&self.name, arrests)))));
             }
             Action::Quit => self.quit = true,
             Action::NewCase => match &mut self.screen {
@@ -593,28 +717,21 @@ impl App {
                     && let Panel::Chase { then, .. } = &mut case.panel
                 {
                     let then = std::mem::take(then);
-                    if case.game.won {
-                        if let Some(s) = &mut self.sounds {
-                            s.march();
-                        }
-                        case.show(Panel::March { started: get_time(), then });
-                    } else {
-                        case.show(Panel::Story(then));
-                    }
+                    case.show(Panel::March { started: get_time(), then, cued: 0 });
                 }
             }
             Action::Jail => {
-                if let Some(s) = &mut self.sounds {
-                    s.jail();
-                }
                 if let Screen::Case(case) = &mut self.screen
                     && let Panel::March { then, .. } = &mut case.panel
                 {
+                    if let Some(s) = &mut self.sounds {
+                        s.quiet();
+                    }
                     // The first line is the suspect being spotted, which the chase has just shown.
-                    let paras: Vec<String> = then.iter().skip(1).filter(|l| !l.text.is_empty()).map(printable).collect();
-                    case.printer = Printer::new();
-                    case.printer.print_paragraphs(&paras);
-                    case.show(Panel::Jailed { started: get_time() });
+                    let mut ending: Vec<String> = then.iter().skip(1).filter(|l| !l.text.is_empty()).map(printable).collect();
+                    // After an arrest, how far the detective is from promotion.
+                    ending.extend(case.promotion.clone());
+                    case.show(Panel::Jailed { started: get_time(), ending: Some(ending), cued: 0 });
                 }
             }
             Action::CloseDossier => self.dossier = None,
@@ -629,7 +746,9 @@ impl App {
                 }
             }
             Action::Investigate(i) => {
-                let Screen::Case(case) = &mut self.screen else { return };
+                let Screen::Case(case) = &mut self.screen else {
+                    return;
+                };
                 if case.game.visited_here().contains(&i) {
                     // Rereading your notes: no need to walk there again.
                     self.apply(Action::Arrive(i));
@@ -642,7 +761,9 @@ impl App {
                 }
             }
             Action::Compute => {
-                let Screen::Case(case) = &mut self.screen else { return };
+                let Screen::Case(case) = &mut self.screen else {
+                    return;
+                };
                 if case.game.warrant.iter().all(|(_, v)| v.is_none()) {
                     // Nothing to work on: the computer says so straight away.
                     self.apply(Action::Computed);
@@ -654,7 +775,9 @@ impl App {
                 }
             }
             Action::Arrive(_) | Action::Fly(_) | Action::Computed | Action::ConfirmGiveUp => {
-                let Screen::Case(case) = &mut self.screen else { return };
+                let Screen::Case(case) = &mut self.screen else {
+                    return;
+                };
                 let before = case.game.log.len();
                 match action {
                     Action::Arrive(i) => {
@@ -665,6 +788,11 @@ impl App {
                         case.walking = None;
                         let place = case.places[i];
                         case.game.investigate(i);
+                        if case.game.won && case.promotion.is_none() {
+                            // Counted (and saved) at the arrest, before the walk to jail.
+                            let arrests = self.progress.add_arrest(&self.name);
+                            case.promotion = Some(promotion_news(arrests));
+                        }
                         let lines = case.story_since(before);
                         // A witness statement gets the portrait and bubble; anything
                         // else (the arrest, the clock running out) is told as a story.
@@ -687,6 +815,14 @@ impl App {
                                 Panel::Chase { started: get_time(), then: lines }
                             }
                             _ => Panel::Story(lines),
+                        };
+                        let interview = matches!(panel, Panel::Interview { .. });
+                        let panel = match (case.game.henchman.take(), case.game.danger.take()) {
+                            (Some((kind, tell)), _) if interview => {
+                                Panel::Henchman { started: get_time(), kind, tell, then: Box::new(panel), cued: 0 }
+                            }
+                            (_, Some(kind)) if interview => Panel::Danger { started: get_time(), kind, then: Box::new(panel), cued: 0 },
+                            _ => panel,
                         };
                         case.show(panel);
                     }
@@ -744,7 +880,8 @@ fn hq_screen(
     ui: &mut Ui,
     hq: &mut Hq,
     name: &mut String,
-    preset: Option<usize>,
+    progress: &Progress,
+    rank_override: Option<usize>,
     sounds: &mut Option<Sounds>,
 ) -> Option<Action> {
     hq.printer.update(get_frame_time(), sounds);
@@ -763,10 +900,10 @@ fn hq_screen(
     let naming = matches!(hq.step, Step::Name) && !busy && !waiting && !hq.help;
 
     draw_clock_box(ui, "HEADQUARTERS", &clock_text(0), false);
-    frame(PICTURE, PAPER, 3.0);
-    hq.printer.draw(ui, inner(PICTURE), naming.then_some(name.as_str()));
-    frame(TEXT, PAPER, 3.0);
-    let r = inner(TEXT);
+    frame(lay().picture, PAPER, 3.0);
+    hq.printer.draw(ui, inner(lay().picture), naming.then_some(name.as_str()));
+    frame(lay().text, PAPER, 3.0);
+    let r = inner(lay().text);
 
     let prompt = if hq.help {
         ui.text("HOW TO PLAY", r.x, r.y + 14.0, BIG, YELLOW, true);
@@ -787,6 +924,11 @@ fn hq_screen(
                 let caret = if naming && get_time().fract() < 0.5 { "_" } else { "" };
                 ui.text(&format!("{name}{caret}"), input.x + 6.0, input.y + 16.0, BIG, PAPER, true);
                 if naming {
+                    // On phones a real text box covers the field, for their keyboards.
+                    touch::want(ui.to_window(input));
+                    if let Some(text) = touch::typed() {
+                        *name = text.chars().take(20).collect();
+                    }
                     for c in typed.iter().filter(|c| !c.is_control()) {
                         if name.chars().count() < 20 {
                             name.push(*c);
@@ -798,32 +940,48 @@ fn hq_screen(
                     if key == Some(KeyCode::Backspace) {
                         name.pop();
                     }
-                    if matches!(key, Some(KeyCode::Enter | KeyCode::KpEnter)) {
+                    if matches!(key, Some(KeyCode::Enter | KeyCode::KpEnter)) || touch::entered() {
                         hq.printer.type_now(display_name(name));
                         let who = display_name(name).to_string();
-                        hq.printer.print(&format!("\n\nYou have been identified, {who}.\n\nChoose your assignment."));
+                        let rank = RANKS[rank_for(progress.arrests(name))].name;
+                        hq.printer.print(&format!("\n\nYou have been identified, {who}.\n\nYour rank: {rank}."));
                         hq.step = Step::Assignment;
                     }
                 }
                 "Type your name and press Enter."
             }
             Step::Assignment => {
-                ui.text("CHOOSE YOUR ASSIGNMENT", r.x, r.y + 14.0, BIG, YELLOW, true);
-                let spare = ["Time for two wrong turns.", "Time for one wrong turn.", "No time for mistakes."];
-                for (i, d) in DIFFICULTIES.iter().enumerate() {
-                    let y = r.y + 24.0 + i as f32 * 40.0;
-                    if ui.option(Rect::new(r.x, y, r.w, 20.0), d.name, &format!("{} flights", d.legs), true) {
-                        return Some(Action::Start(i));
-                    }
-                    ui.text(spare[i], r.x + 4.0, y + 32.0, SMALL, GREY, false);
+                ui.text("YOUR RANK", r.x, r.y + 14.0, BIG, YELLOW, true);
+                let arrests = progress.arrests(name);
+                let rank = rank_for(arrests);
+                let plural = |n: u32| if n == 1 { "" } else { "s" };
+                ui.text(RANKS[rank].name, r.x, r.y + 36.0, BIG, PAPER, true);
+                ui.text(&format!("{arrests} arrest{} so far.", plural(arrests)), r.x, r.y + 56.0, SMALL, GREY, false);
+                if let Some(next) = RANKS.get(rank + 1) {
+                    let n = next.arrests - arrests;
+                    ui.text(&format!("{n} more for promotion to {}.", next.name), r.x, r.y + 72.0, SMALL, GREY, false);
+                } else {
+                    ui.text("The agency's highest rank.", r.x, r.y + 72.0, SMALL, GREY, false);
                 }
-                if let Some(d) = preset {
-                    ui.text(&format!("Press Enter for {}.", DIFFICULTIES[d].name), r.x, r.y + 150.0, SMALL, GREY, false);
-                    if !busy && matches!(key, Some(KeyCode::Enter | KeyCode::KpEnter)) {
-                        return Some(Action::Start(d));
-                    }
+                // Each rank's cases are longer, or leave less time for wrong turns.
+                let case = &RANKS[rank_override.unwrap_or(rank)];
+                let spare = ["No time for mistakes.", "Time for one wrong turn.", "Time for two wrong turns."];
+                ui.text(
+                    &format!("Cases: {} flights. {}", case.legs, spare[case.spare_detours.min(2)]),
+                    r.x,
+                    r.y + 96.0,
+                    SMALL,
+                    GREY,
+                    false,
+                );
+                if rank_override.is_some() {
+                    ui.text(&format!("(Playing {} cases, from --rank.)", case.name), r.x, r.y + 112.0, SMALL, GREY, false);
                 }
-                "Choose an assignment to begin."
+                let take = ui.option(Rect::new(r.x, r.y + 126.0, r.w, 20.0), "Take your next case", "Enter", true);
+                if take || (!busy && matches!(key, Some(KeyCode::Enter | KeyCode::KpEnter))) {
+                    return Some(Action::Start);
+                }
+                "Take your next case when you're ready."
             }
             Step::Briefing if busy => "Printing your case file…",
             // Waiting between paragraphs, or done: either way a key carries on.
@@ -845,7 +1003,7 @@ fn hq_screen(
     prompt_strip(ui, prompt);
 
     // A key or click anywhere else skips the printing, or carries on once it's done.
-    let pressed = (key.is_some() && !naming) || ui.take_click(Rect::new(0.0, 0.0, W, H));
+    let pressed = (key.is_some() && !naming) || ui.take_click(everywhere());
     if pressed && busy {
         hq.printer.finish();
     } else if pressed && waiting {
@@ -858,7 +1016,7 @@ fn hq_screen(
 
 /// The white strip under the text panel that tells the player what to do.
 fn prompt_strip(ui: &Ui, text: &str) {
-    let r = Rect::new(TEXT.x - 2.0, BUTTON_Y - 2.0, W - TEXT.x + 2.0, H - BUTTON_Y - 2.0);
+    let r = Rect::new(lay().text.x - 2.0, lay().button_y - 2.0, lay().w - lay().text.x + 2.0, lay().h - lay().button_y - 2.0);
     fill(r, PAPER);
     let rows = ui.wrap(text, BIG, true, r.w - 24.0);
     let mut y = r.y + (r.h - rows.len() as f32 * 19.0) / 2.0 + 14.0;
@@ -898,47 +1056,58 @@ fn case_screen(
     }
     if case.shown_t < game.t && get_time() >= case.next_tick {
         case.shown_t += 1;
-        case.next_tick = get_time() + HOUR_SECONDS;
+        // Hours asleep or in the air go by twice as fast.
+        let quick = asleep(case.shown_t) || case.flown.contains(&case.shown_t);
+        case.next_tick = get_time() + if quick { HOUR_SECONDS / 2.0 } else { HOUR_SECONDS };
         if let Some(s) = sounds {
             s.tick();
         }
     }
     draw_clock_box(ui, &game.country(game.here).city, &clock_text(case.shown_t), running_late);
 
-    frame(PICTURE, PAPER, 3.0);
-    let picture = inner(PICTURE);
+    frame(lay().picture, PAPER, 3.0);
+    let picture = inner(lay().picture);
     case.printer.update(get_frame_time(), sounds);
+    if let Some(s) = sounds {
+        // From take-off until landing, when the map gives way to the city.
+        s.travelling(case.flight.is_some());
+    }
     let mut action = if matches!(case.panel, Panel::Depart | Panel::Flying) {
         draw_map(ui, land, case, picture)
-    } else if matches!(case.panel, Panel::Crime { .. } | Panel::Jailed { .. }) {
+    } else if match &case.panel {
+        Panel::Crime { .. } => true,
+        Panel::Jailed { started, .. } => get_time() - started >= print_at(case.game.won),
+        _ => false,
+    } {
         case.printer.draw(ui, picture, None);
         None
     } else {
         let game = &case.game;
         let key = (game.here, TimeOfDay::at(hour_of_day(game.t)));
-        let texture = scenes
-            .entry(key)
-            .or_insert_with(|| scene::postcard(game.country(key.0), key.1, picture.w as i32, POSTCARD_H as i32));
+        let texture = scenes.entry(key).or_insert_with(|| scene::postcard(game.country(key.0), key.1, picture.w as i32, POSTCARD_H as i32));
         let crop = Rect::new(0.0, POSTCARD_H - picture.h, picture.w, picture.h);
         let params = DrawTextureParams { source: Some(crop), ..Default::default() };
         draw_texture_ex(texture, picture.x, picture.y, WHITE, params);
         None
     };
 
-    frame(TEXT, PAPER, 3.0);
-    action = action.or_else(|| text_panel(ui, case, inner(TEXT), art, sounds));
+    frame(lay().text, PAPER, 3.0);
+    action = action.or_else(|| text_panel(ui, case, inner(lay().text), art, sounds));
 
-    let busy = case.flight.is_some() || case.game.over || case.computing.is_some();
+    let busy = case.flight.is_some()
+        || case.game.over
+        || case.computing.is_some()
+        || matches!(case.panel, Panel::Henchman { .. } | Panel::Danger { .. });
     let selected = match case.panel {
         _ if case.picking => Some(Icon::Investigate),
-        Panel::Interview { .. } => Some(Icon::Investigate),
+        Panel::Interview { .. } | Panel::Henchman { .. } | Panel::Danger { .. } => Some(Icon::Investigate),
         Panel::Notes | Panel::Help | Panel::GiveUp => Some(Icon::Notes),
         Panel::Depart | Panel::Flying => Some(Icon::Depart),
         Panel::Crime { .. } => Some(Icon::Crime),
         Panel::Story(_) | Panel::Chase { .. } | Panel::March { .. } | Panel::Jailed { .. } => None,
     };
     for (i, icon) in BUTTONS.into_iter().enumerate() {
-        let r = Rect::new(TEXT.x + i as f32 * (BUTTON_W + 6.0), BUTTON_Y, BUTTON_W, BUTTON_H);
+        let r = Rect::new(lay().text.x + i as f32 * (BUTTON_W + 6.0), lay().button_y, BUTTON_W, BUTTON_H);
         if ui.icon_button(r, icon, selected == Some(icon), !busy) {
             action = Some(match icon {
                 Icon::Notes => Action::Show(Panel::Notes),
@@ -956,13 +1125,11 @@ fn case_screen(
     action
 }
 
-const PICKER: Rect = Rect { x: 130.0, y: 92.0, w: 380.0, h: 204.0 };
-
 /// The original's "where to?" window: a picture of each place with its
 /// name underneath. Hovering either one highlights both.
 fn place_picker(ui: &mut Ui, place_art: &[Texture2D], case: &Case) -> Option<Action> {
-    frame(PICKER, PAPER, 3.0);
-    let r = inner(PICKER);
+    frame(lay().picker, PAPER, 3.0);
+    let r = inner(lay().picker);
     let art_w = places::ART_W as f32;
     let gap = (r.w - 3.0 * art_w) / 4.0;
     let pictures: Vec<Rect> =
@@ -1008,27 +1175,25 @@ fn place_picker(ui: &mut Ui, place_art: &[Texture2D], case: &Case) -> Option<Act
             fill(Rect::new(x + dir.x.signum(), y - 2.0, 1.0, 1.0), PAPER);
         }
         // A click or key gets there at once.
-        return (ui.take_click(Rect::new(0.0, 0.0, W, H)) || ui.any_key()).then_some(Action::Arrive(i));
+        return (ui.take_click(everywhere()) || ui.any_key()).then_some(Action::Arrive(i));
     }
-    let hours = case.game.next_interview_hours();
-    let plural = if hours == 1 { "" } else { "s" };
-    let hint = format!("A new interview here takes {hours} hour{plural}.");
+    let hint = format!("A new interview here takes {INTERVIEW_HOURS} hours.");
     ui.text_centred(&hint, r.x + r.w / 2.0, r.y + r.h - 4.0, SMALL, GREY, false);
 
     if let Some(i) = hovered
-        && ui.take_click(PICKER)
+        && ui.take_click(lay().picker)
     {
         return Some(Action::Investigate(i));
     }
     // Clicking outside the window or pressing Escape closes it.
-    let outside = !ui.hovered(PICKER) && ui.take_click(Rect::new(0.0, 0.0, W, H));
+    let outside = !ui.hovered(lay().picker) && ui.take_click(everywhere());
     (outside || ui.key(KeyCode::Escape)).then_some(Action::Picker(false))
 }
 
 /// The box top left: where you are and when.
 fn draw_clock_box(ui: &Ui, place: &str, time: &str, late: bool) {
-    frame(CLOCK, PAPER, 3.0);
-    let r = inner(CLOCK);
+    frame(lay().clock, PAPER, 3.0);
+    let r = inner(lay().clock);
     let cx = r.x + r.w / 2.0;
     ui.text_centred(&ui.fit(place, BIG, true, r.w - 8.0), cx, r.y + 14.0, BIG, PAPER, true);
     ui.text_centred(time, cx, r.y + 31.0, BIG, if late { RED } else { PAPER }, true);
@@ -1037,14 +1202,14 @@ fn draw_clock_box(ui: &Ui, place: &str, time: &str, late: bool) {
 fn draw_map(ui: &mut Ui, land: &Land, case: &mut Case, r: Rect) -> Option<Action> {
     let here = case.game.here;
     if case.map.as_ref().is_none_or(|(city, _, _)| *city != here) {
-        let points: Vec<(f64, f64)> = std::iter::once(here)
-            .chain(case.dests.iter().copied())
-            .map(|c| (case.game.country(c).lat, case.game.country(c).lon))
-            .collect();
+        let points: Vec<(f64, f64)> =
+            std::iter::once(here).chain(case.dests.iter().copied()).map(|c| (case.game.country(c).lat, case.game.country(c).lon)).collect();
         let view = MapView::fit(r, &points);
         case.map = Some((here, view, view.render(land)));
     }
-    let Some((_, view, texture)) = &case.map else { return None };
+    let Some((_, view, texture)) = &case.map else {
+        return None;
+    };
     draw_texture(texture, r.x, r.y, WHITE);
     let game = &case.game;
     let at = |c: usize| view.project(game.country(c).lat, game.country(c).lon);
@@ -1119,19 +1284,58 @@ struct Art<'a> {
     places: &'a [Texture2D],
     portraits: &'a [Texture2D],
     jail: &'a Jail,
+    cast: &'a Cast,
 }
 
-fn text_panel(
-    ui: &mut Ui,
-    case: &mut Case,
-    r: Rect,
-    art: Art,
-    sounds: &mut Option<Sounds>,
-) -> Option<Action> {
+fn text_panel(ui: &mut Ui, case: &mut Case, r: Rect, art: Art, sounds: &mut Option<Sounds>) -> Option<Action> {
     let portraits = art.portraits;
     let row = |n: f32| Rect::new(r.x, r.y + n, r.w, 20.0);
     let typed = ((get_time() - case.typed_from) * TYPING_SPEED) as usize;
     let skip = ui.any_key();
+    let won = case.game.won;
+    let scene = match &mut case.panel {
+        Panel::March { started, cued, .. } => Some((*started, cued, if won { CAUGHT_WALK } else { ESCAPED_WALK })),
+        Panel::Jailed { started, cued, .. } => Some((*started, cued, if won { CAUGHT_JAIL } else { NO_CUES })),
+        Panel::Henchman { started, cued, kind, .. } => Some((*started, cued, HENCHMAN_CUES[*kind])),
+        Panel::Danger { started, cued, kind, .. } => Some((*started, cued, DANGER_CUES[*kind])),
+        _ => None,
+    };
+    if let Some((started, cued, cues)) = scene {
+        let t = get_time() - started;
+        while let Some(&(at, cue)) = cues.get(*cued)
+            && t >= at
+        {
+            *cued += 1;
+            if let Some(s) = sounds {
+                match cue {
+                    Cue::Footsteps => s.footsteps(),
+                    Cue::Lament => s.lament(),
+                    Cue::Triumph => s.triumph(),
+                    Cue::Clank => s.clank(),
+                    Cue::Quiet => s.quiet(),
+                    Cue::Tune(kind) => s.henchman(kind),
+                    Cue::Danger(kind) => s.danger(kind),
+                }
+            }
+        }
+    }
+    // The henchman has gone (and his line has been read), or the warning's
+    // tune has finished: on to the interview.
+    let unveiled = match &case.panel {
+        Panel::Henchman { started, kind, tell, .. } => get_time() - started >= henchman_times(art.cast, *kind, *tell, r).1,
+        Panel::Danger { started, kind, .. } => get_time() - started >= DANGER_WITNESS_AT[*kind],
+        _ => false,
+    };
+    if unveiled && let Panel::Henchman { then, .. } | Panel::Danger { then, .. } = std::mem::replace(&mut case.panel, Panel::Notes) {
+        case.show(*then);
+    }
+    if let Panel::Jailed { started, ending, .. } = &mut case.panel
+        && get_time() - *started >= print_at(won)
+        && let Some(paras) = ending.take()
+    {
+        case.printer = Printer::new();
+        case.printer.print_paragraphs(&paras);
+    }
     match &case.panel {
         Panel::Story(lines) => {
             let ended = case.game.over;
@@ -1151,25 +1355,38 @@ fn text_panel(
             None
         }
         Panel::Chase { started, .. } => {
-            chase(ui, r, get_time() - started);
+            chase(ui, art.cast, r, get_time() - started);
             let over = get_time() - started >= CHASE_SECONDS;
             (over || skip || ui.take_click(r)).then_some(Action::EndChase)
         }
         Panel::March { started, .. } => {
             let t = get_time() - started;
-            march(r, t);
-            (t >= JAILED_AT || skip || ui.take_click(r)).then_some(Action::Jail)
+            let jailed_at = if case.game.won { JAILED_AT } else { EMPTY_JAIL_AT };
+            walk_to_jail(art.cast, r, t, case.game.won);
+            (t >= jailed_at || skip || ui.take_click(r)).then_some(Action::Jail)
         }
-        Panel::Jailed { started } => {
+        Panel::Jailed { started, ending, .. } => {
             let t = get_time() - started;
-            art.jail.draw(r, eyes_at(t), t >= GRIP_AT);
+            art.jail.draw(r, won.then_some(t >= CLANK_AT));
+            if ending.is_some() {
+                // The music is playing out: a click or key skips to the clank.
+                if skip || ui.take_click(Rect::new(0.0, MENU_H, lay().w, lay().h - MENU_H)) {
+                    if let Some(s) = sounds {
+                        s.quiet();
+                    }
+                    if let Panel::Jailed { started, .. } = &mut case.panel {
+                        *started = started.min(get_time() - CLANK_AT);
+                    }
+                }
+                return None;
+            }
             let (busy, waiting) = (case.printer.busy(), case.printer.waiting());
             if busy || waiting {
                 if waiting {
                     ui.text("Press a key or click for more.", r.x, r.y + r.h - 6.0, SMALL, GREY, false);
                 }
                 // The paper is in the picture frame, so a click anywhere carries on.
-                if skip || ui.take_click(Rect::new(0.0, MENU_H, W, H - MENU_H)) {
+                if skip || ui.take_click(Rect::new(0.0, MENU_H, lay().w, lay().h - MENU_H)) {
                     if busy {
                         case.printer.finish();
                     } else {
@@ -1183,6 +1400,51 @@ fn text_panel(
             }
             if CAN_QUIT && ui.option(Rect::new(r.x + r.w - 70.0, r.y + r.h - 20.0, 70.0, 20.0), "Quit", "", true) {
                 return Some(Action::Quit);
+            }
+            None
+        }
+        Panel::Henchman { started, kind, tell, .. } => {
+            let (t, kind, tell) = (get_time() - started, *kind, *tell);
+            let (gone, _) = henchman_times(art.cast, kind, tell, r);
+            let appears = t - HENCHMAN_APPEARS[kind];
+            match kind {
+                0 => art.cast.stride.draw(r, appears),
+                1 => art.cast.sneak.draw(r, appears),
+                _ => art.cast.popup.draw(r, appears),
+            }
+            if tell && t >= gone {
+                // Low in the panel, like "There goes the suspect!".
+                let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h * 0.73 - 15.0);
+                for (n, line) in ["A S.U.R.M.E. henchman!", "You must be on", "the right track."].into_iter().enumerate() {
+                    ui.text_centred(line, cx, cy + n as f32 * 19.0, BIG, PAPER, true);
+                }
+            }
+            // A click or key skips to his line, or past it to the interview.
+            if skip || ui.take_click(r) {
+                if let Some(s) = sounds {
+                    s.quiet();
+                }
+                let to = if tell && t < gone { gone } else { f64::INFINITY };
+                if let Panel::Henchman { started, cued, .. } = &mut case.panel {
+                    *started = get_time() - to.min(1e6);
+                    // Skipped before his tune began: it shouldn't start now.
+                    *cued = HENCHMAN_CUES[kind].len();
+                }
+            }
+            None
+        }
+        Panel::Danger { started, kind, .. } => {
+            let (t, kind) = (get_time() - started, *kind);
+            art.cast.danger.draw(kind, r, t - DANGER_AT[kind]);
+            // A click or key goes straight to the witness.
+            if skip || ui.take_click(r) {
+                if let Some(s) = sounds {
+                    s.quiet();
+                }
+                if let Panel::Danger { started, cued, .. } = &mut case.panel {
+                    *started = get_time() - DANGER_WITNESS_AT[kind];
+                    *cued = DANGER_CUES[kind].len();
+                }
             }
             None
         }
@@ -1246,62 +1508,102 @@ fn text_panel(
 const CHASE_SECONDS: f64 = 17.6;
 
 /// The chase, timed to its soundtrack: the suspect runs across the bottom
-/// of the panel, "There goes the suspect!", then the police run after them.
-fn chase(ui: &Ui, r: Rect, t: f64) {
-    let ground = r.y + r.h - 4.0;
-    let step = (t / 0.12) as usize;
-    // Where a runner of width w is at time t, running across between t0 and t1.
-    let across = |t0: f64, t1: f64, w: f32| {
-        (t >= t0 && t < t1).then(|| r.x - w + ((t - t0) / (t1 - t0)) as f32 * (r.w + w))
-    };
-    if let Some(x) = across(1.6, 4.5, sprites::SUSPECT_W) {
-        sprites::suspect(x, ground, step, r);
+/// of the panel from `SUSPECT_AT`, "There goes the suspect!", then the police
+/// run after them from `POLICE_AT`.
+const SUSPECT_AT: f64 = 1.6;
+const POLICE_AT: f64 = 14.5;
+
+fn chase(ui: &Ui, cast: &Cast, r: Rect, t: f64) {
+    cast.suspect.draw(r, t - SUSPECT_AT);
+    // Low in the panel, as in the original, which wiped the lines one at a time.
+    let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h * 0.73 - 5.0);
+    if (5.7..9.8).contains(&t) {
+        ui.text_centred("There goes", cx, cy, BIG, PAPER, true);
     }
     if (5.7..10.6).contains(&t) {
-        let (cx, cy) = (r.x + r.w / 2.0, r.y + r.h / 2.0);
-        ui.text_centred("There goes", cx, cy, BIG, PAPER, true);
         ui.text_centred("the suspect!", cx, cy + 19.0, BIG, PAPER, true);
     }
-    if let Some(x) = across(14.4, 17.0, sprites::POLICE_W) {
-        sprites::police(x, ground, step, r);
-    }
+    cast.police.draw(r, t - POLICE_AT);
 }
 
-/// The march to jail, timed from the original: the suspect and the officer
-/// cross the panel between these times, then after a moment of empty
-/// panel the jail appears at `JAILED_AT`.
-const MARCH: (f64, f64) = (0.2, 8.6);
+/// The walk to jail, timed from the original: the suspect and the officer
+/// set off across the panel at `MARCH_AT` to their footsteps, and after a
+/// moment of empty panel the jail appears at `JAILED_AT`.
+const MARCH_AT: f64 = 0.2;
 const JAILED_AT: f64 = 9.8;
-/// When the prisoner grabs the bars, as the jail music ends.
-const GRIP_AT: f64 = 14.3;
+/// The same when the suspect got away: a sad tune over the empty panel,
+/// then the officer trudging across alone from `TRUDGE_AT`.
+const TRUDGE_AT: f64 = 7.1;
+const EMPTY_JAIL_AT: f64 = 15.1;
 
-/// The arrested suspect and the officer walking in from the right and off
-/// to the left along the bottom of the panel.
-fn march(r: Rect, t: f64) {
-    let (t0, t1) = MARCH;
-    if !(t0..t1).contains(&t) {
-        return;
-    }
-    let x = r.x + r.w - ((t - t0) / (t1 - t0)) as f32 * (r.w + sprites::MARCH_W);
-    sprites::march(x.round(), r.y + r.h - 4.0, (t / 0.25) as usize, r);
+/// In jail with the suspect, as in the original: the music plays out, the
+/// prisoner grabs the bars with a clank, and then the printer comes up and
+/// starts on the ending. An empty cell gets the printer straight away.
+const CLANK_AT: f64 = 14.215;
+const PRINT_AT: f64 = 14.75;
+
+fn print_at(caught: bool) -> f64 {
+    if caught { PRINT_AT } else { 0.0 }
 }
 
-/// Where the prisoner looks `t` seconds after the door shuts: glancing about
-/// at the original's irregular moments, over and over.
-fn eyes_at(t: f64) -> Eyes {
-    const GLANCES: [(f64, Eyes); 9] = [
-        (0.0, Eyes::Ahead),
-        (1.5, Eyes::Left),
-        (3.8, Eyes::Right),
-        (4.4, Eyes::Ahead),
-        (6.1, Eyes::Left),
-        (8.4, Eyes::Ahead),
-        (9.5, Eyes::Right),
-        (10.7, Eyes::Ahead),
-        (13.0, Eyes::Left),
-    ];
-    let t = t.rem_euclid(14.6);
-    GLANCES.iter().rev().find(|(at, _)| t >= *at).map_or(Eyes::Ahead, |&(_, eyes)| eyes)
+/// A henchman's appearance, timed from recordings of the original: his tune
+/// starts `HENCHMAN_TUNE_AT` after the walk to the witness, and he shows
+/// himself a moment into it (`HENCHMAN_APPEARS`, for each of the three).
+const HENCHMAN_TUNE_AT: f64 = 0.9;
+const HENCHMAN_APPEARS: [f64; 3] = [HENCHMAN_TUNE_AT + 1.15, HENCHMAN_TUNE_AT + 1.14, HENCHMAN_TUNE_AT + 0.93];
+const HENCHMAN_CUES: [&[(f64, Cue)]; 3] =
+    [&[(HENCHMAN_TUNE_AT, Cue::Tune(0))], &[(HENCHMAN_TUNE_AT, Cue::Tune(1))], &[(HENCHMAN_TUNE_AT, Cue::Tune(2))]];
+/// The final city's warnings, timed from recordings of the original after the
+/// walk to the witness: when the weapon shows (`DANGER_AT`), when its sound
+/// and tune start, and when the witness takes over as the tune ends.
+const DANGER_AT: [f64; 3] = [1.05, 1.12, 0.88];
+const DANGER_CUES: [&[(f64, Cue)]; 3] = [&[(1.0, Cue::Danger(0))], &[(1.2, Cue::Danger(1))], &[(1.69, Cue::Danger(2))]];
+const DANGER_WITNESS_AT: [f64; 3] = [5.75, 5.05, 5.95];
+/// How long "A V.I.L.E. henchman! You must be on the right track." stays up.
+const HENCHMAN_LINE_SECONDS: f64 = 3.5;
+
+/// When henchman `kind` has gone from panel `r`, and when the interview
+/// takes over (after his line, if he has one).
+fn henchman_times(cast: &Cast, kind: usize, tell: bool, r: Rect) -> (f64, f64) {
+    let on_screen = match kind {
+        0 => cast.stride.seconds(r),
+        1 => cast.sneak.seconds(r),
+        _ => sprites::PopUp::SECONDS,
+    };
+    // The original's line came a tenth of a second after he'd gone.
+    let gone = HENCHMAN_APPEARS[kind] + on_screen + 0.1;
+    (gone, if tell { gone + HENCHMAN_LINE_SECONDS } else { gone })
+}
+
+#[derive(Clone, Copy)]
+enum Cue {
+    Footsteps,
+    Lament,
+    Triumph,
+    Clank,
+    Quiet,
+    Tune(usize),
+    Danger(usize),
+}
+
+/// The sounds of the walk to jail and of the jail, and when they start, as
+/// in recordings of the original. Walking, only the footsteps are heard
+/// (the officer's first step breaking off the sad tune); the music for a
+/// capture comes with the jail.
+const CAUGHT_WALK: &[(f64, Cue)] = &[(0.0, Cue::Footsteps), (9.5, Cue::Quiet)];
+const ESCAPED_WALK: &[(f64, Cue)] = &[(1.0, Cue::Lament), (7.1, Cue::Footsteps), (14.6, Cue::Quiet)];
+const CAUGHT_JAIL: &[(f64, Cue)] = &[(0.0, Cue::Triumph), (CLANK_AT, Cue::Clank)];
+const NO_CUES: &[(f64, Cue)] = &[];
+
+/// The arrested suspect and the officer, or the officer alone if the
+/// suspect wasn't `caught`, walking in from the right and off to the left
+/// along the bottom of the panel.
+fn walk_to_jail(cast: &Cast, r: Rect, t: f64, caught: bool) {
+    if caught {
+        cast.march.draw(r, t - MARCH_AT);
+    } else {
+        cast.slumped.draw(r, t - TRUDGE_AT);
+    }
 }
 
 /// A line of the case as the printer puts it: the paper's font has straight
@@ -1359,10 +1661,7 @@ fn interview(ui: &Ui, r: Rect, portrait: &Texture2D, witness: &str, said: &str, 
 /// The height `lines` need when wrapped at `size`.
 fn paragraphs_height(ui: &Ui, w: f32, lines: &[Line], size: u16, bold: bool) -> f32 {
     let lh = line_height(size);
-    lines
-        .iter()
-        .map(|l| if l.text.is_empty() { 6.0 } else { ui.wrap(&speech(l), size, bold, w).len() as f32 * lh + 3.0 })
-        .sum()
+    lines.iter().map(|l| if l.text.is_empty() { 6.0 } else { ui.wrap(&speech(l), size, bold, w).len() as f32 * lh + 3.0 }).sum()
 }
 
 fn speech(l: &Line) -> String {
@@ -1426,8 +1725,7 @@ fn notes_panel(ui: &mut Ui, case: &mut Case, r: Rect, sounds: &mut Option<Sounds
     fill(Rect::new(r.x, log.y, r.w, 1.0), DARK);
     if ui.hovered(log) && ui.wheel != 0.0 {
         let max = case.rows.len().saturating_sub(4);
-        case.notes_scroll =
-            if ui.wheel > 0.0 { (case.notes_scroll + 2).min(max) } else { case.notes_scroll.saturating_sub(2) };
+        case.notes_scroll = if ui.wheel > 0.0 { (case.notes_scroll + 2).min(max) } else { case.notes_scroll.saturating_sub(2) };
     }
     let end = case.rows.len() - case.notes_scroll.min(case.rows.len());
     let mut y = log.y + log.h - 4.0;
@@ -1481,9 +1779,7 @@ fn crime_computer(ui: &mut Ui, case: &mut Case, r: Rect, editing: Option<usize>)
 fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Option<usize>) -> Option<Action> {
     let s = Rect::new(screen.x + 6.0, screen.y + 5.0, screen.w - 12.0, screen.h - 10.0);
     let fields = case.game.warrant_fields();
-    let value_of = |case: &Case, key: &str| {
-        case.game.warrant.iter().find(|(k, _)| k == key).and_then(|(_, v)| v.clone())
-    };
+    let value_of = |case: &Case, key: &str| case.game.warrant.iter().find(|(k, _)| k == key).and_then(|(_, v)| v.clone());
 
     let Some(f) = editing else {
         // The menu: each field and its current value, then the commands.
@@ -1623,8 +1919,6 @@ struct Files<'a> {
     mugshots: &'a [Texture2D],
 }
 
-const DOSSIER: Rect = Rect { x: 34.0, y: 66.0, w: 568.0, h: 282.0 };
-
 /// A suspect's file, as in the original: a white sheet over the screen with
 /// their name on a tab, their photo in a heavy frame, bold labels with
 /// typewritten answers, and their background along the bottom. The arrow
@@ -1632,7 +1926,7 @@ const DOSSIER: Rect = Rect { x: 34.0, y: 66.0, w: 568.0, h: 282.0 };
 fn dossier_window(ui: &mut Ui, files: &Files, i: usize) -> Option<Action> {
     let s = &files.data.suspects[i];
     let count = files.data.suspects.len();
-    let r = DOSSIER;
+    let r = lay().dossier;
 
     fill(Rect::new(r.x + 5.0, r.y + 5.0, r.w, r.h), INK);
     fill(r, PAPER);
@@ -1648,29 +1942,35 @@ fn dossier_window(ui: &mut Ui, files: &Files, i: usize) -> Option<Action> {
     fill(Rect::new(tab.x + 4.0, r.y - 1.0, tab.w - 8.0, 5.0), PAPER);
     ui.mono(&name, tab.x + (tab.w - name.chars().count() as f32 * MONO_W) / 2.0, tab.y + 18.0, INK);
 
-    let photo = Rect::new(r.x + 14.0, r.y + 14.0, 144.0, 204.0);
+    // Side by side on a wide screen; the photo above the facts on a tall one.
+    let tall = TALL_NOW.get();
+    let photo =
+        if tall { Rect::new(r.x + (r.w - 144.0) / 2.0, r.y + 14.0, 144.0, 204.0) } else { Rect::new(r.x + 14.0, r.y + 14.0, 144.0, 204.0) };
     fill(photo, INK);
     outline(Rect::new(photo.x + 3.0, photo.y + 3.0, photo.w - 6.0, photo.h - 6.0), PAPER);
     let params = DrawTextureParams { dest_size: Some(vec2(132.0, 192.0)), ..Default::default() };
     draw_texture_ex(&files.mugshots[i], photo.x + 6.0, photo.y + 6.0, WHITE, params);
 
-    let mut facts: Vec<(&str, &str)> = vec![("Name", &s.name)];
-    if files.data.witness_pronouns {
-        facts.push(("Pronoun", &s.pronoun));
-    }
+    let sex = if s.sex == "female" { "Female" } else { "Male" };
+    let mut facts: Vec<(&str, &str)> = vec![("Name", &s.name), ("Sex", sex)];
     for t in &files.data.traits {
         facts.push((&t.label, s.get(&t.key)));
     }
-    let (x, right) = (photo.x + photo.w + 14.0, r.x + r.w - 14.0);
-    let mut y = r.y + 30.0;
+    let right = r.x + r.w - 14.0;
+    let (x, mut y) = if tall { (r.x + 14.0, photo.y + photo.h + 24.0) } else { (photo.x + photo.w + 14.0, r.y + 30.0) };
     for (label, value) in facts {
         y = labelled(ui, label, value, (x, right), y);
     }
     if let Some(bio) = &s.bio {
-        let y = (y + 2.0).max(photo.y + photo.h + 20.0);
-        labelled(ui, "Other", bio, (r.x + 14.0, right), y);
+        let y = if tall { y + 2.0 } else { (y + 2.0).max(photo.y + photo.h + 20.0) };
+        labelled(ui, "Notes", bio, (r.x + 14.0, right), y);
     }
-    let hint = format!("File {} of {count}. Left and right arrows: other files. Click: close.", i + 1);
+    // Phones have no arrow keys; the Dossiers menu still opens any file.
+    let hint = if tall {
+        format!("File {} of {count}. Tap to close.", i + 1)
+    } else {
+        format!("File {} of {count}. Left and right arrows: other files. Click: close.", i + 1)
+    };
     ui.text_centred(&hint, r.x + r.w / 2.0, r.y + r.h - 8.0, SMALL, DARK, false);
 
     if ui.key(KeyCode::Left) {
@@ -1679,7 +1979,7 @@ fn dossier_window(ui: &mut Ui, files: &Files, i: usize) -> Option<Action> {
     if ui.key(KeyCode::Right) {
         return Some(Action::OpenDossier((i + 1) % count));
     }
-    let close = ui.take_click(Rect::new(0.0, MENU_H, W, H)) || ui.key(KeyCode::Escape) || ui.key(KeyCode::Enter);
+    let close = ui.take_click(Rect::new(0.0, MENU_H, lay().w, lay().h)) || ui.key(KeyCode::Escape) || ui.key(KeyCode::Enter);
     close.then_some(Action::CloseDossier)
 }
 
@@ -1737,10 +2037,8 @@ impl App {
         let in_case = matches!(self.screen, Screen::Case(_));
         match m {
             0 => {
-                let mut items = vec![
-                    ("New case".to_string(), in_case.then_some(Action::NewCase)),
-                    ("How to play".to_string(), Some(Action::Help)),
-                ];
+                let mut items =
+                    vec![("New case".to_string(), in_case.then_some(Action::NewCase)), ("How to play".to_string(), Some(Action::Help))];
                 if CAN_QUIT {
                     items.push(("Quit".to_string(), Some(Action::Quit)));
                 }
@@ -1757,7 +2055,7 @@ impl App {
     /// Draw the menu bar and any open menu, and return what was chosen.
     fn menu_bar(&mut self, titles: &[Rect]) -> Option<Action> {
         let ui = &self.ui;
-        fill(Rect::new(0.0, 0.0, W, MENU_H), PAPER);
+        fill(Rect::new(0.0, 0.0, lay().w, MENU_H), PAPER);
         for (i, (title, r)) in MENUS.iter().zip(titles).enumerate() {
             let open = self.menu == Some(i);
             if open {
@@ -1772,7 +2070,7 @@ impl App {
         let items = self.menu_items(m);
         let width = items.iter().map(|(label, _)| self.ui.width(label, BIG, true)).fold(0.0, f32::max) + 24.0;
         let rows = items.len() as f32;
-        let x = titles[m].x.min(W - width - 2.0);
+        let x = titles[m].x.min(lay().w - width - 2.0);
         let r = Rect::new(x, MENU_H, width, rows * 19.0 + 6.0);
         fill(Rect::new(r.x + 3.0, r.y + 3.0, r.w, r.h), INK);
         fill(r, PAPER);
@@ -1786,14 +2084,20 @@ impl App {
             if hover {
                 fill(row, INK);
             }
-            let colour = if hover { PAPER } else if active { INK } else { GREY };
+            let colour = if hover {
+                PAPER
+            } else if active {
+                INK
+            } else {
+                GREY
+            };
             self.ui.text(&label, row.x + 8.0, row.y + 15.0, BIG, colour, true);
             if hover && self.ui.take_click(row) {
                 chosen = action;
             }
         }
         // Choosing something, clicking elsewhere or pressing Escape closes it.
-        let elsewhere = self.ui.take_click(Rect::new(0.0, 0.0, W, H));
+        let elsewhere = self.ui.take_click(everywhere());
         if chosen.is_some() || elsewhere || is_key_pressed(KeyCode::Escape) {
             self.menu = None;
         }
@@ -1802,13 +2106,13 @@ impl App {
 }
 
 fn help_paras() -> Vec<Para> {
-    let hours: Vec<String> = INTERVIEW_HOURS.iter().map(|h| h.to_string()).collect();
     let body = |t: String| para(t, SMALL, false, PAPER, 6.0);
     let head = |t: &str| para(t, BIG, true, YELLOW, 0.0);
     vec![
         body("A family member has stolen a treasure and is hopping around the world. Follow the trail to their hideout and arrest them before the deadline.".to_string()),
+        body("Arrests get you promoted, from Rookie up to Super Sleuth, and each rank's cases are harder. Your arrests are saved under your name.".to_string()),
         head("Investigate"),
-        body(format!("The magnifying glass opens a window showing the city's three places, each with a witness; ones you've visited are grey. On the right trail, witnesses hint at the next country (flags, money, landmarks, food, language...) and sometimes describe the thief. In a wrong city nobody has seen a thing, so fly back. Each new interview in a city takes longer ({} hours).", hours.join(", "))),
+        body(format!("The magnifying glass opens a window showing the city's three places, each with a witness; ones you've visited are grey. On the right trail, witnesses hint at the next country (flags, money, landmarks, food, language...) and sometimes describe the thief. In a wrong city nobody has seen a thing, so fly back. Each interview takes {INTERVIEW_HOURS} hours.")),
         head("Depart"),
         body("The plane. Four flights leave every city; pick one from the list or click its dot on the map. Longer flights take longer.".to_string()),
         head("Crime computer"),

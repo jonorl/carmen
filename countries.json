@@ -143,10 +143,10 @@
     },
     {
       "country": "Italy",
-      "city": "Rome",
-      "lat": 41.9, "lon": 12.5,
-      "about": "Rome, the 'Eternal City', is packed with nearly 3,000 years of history. Vatican City, the world's smallest country, sits entirely inside it.",
-      "treasures": ["a coin from the bottom of the Trevi Fountain", "the original recipe for carbonara"],
+      "city": "Milan",
+      "lat": 45.46, "lon": 9.19,
+      "about": "Milan, in the north of Italy, is the country's capital of fashion, design and finance. Its marble cathedral took nearly six centuries to finish.",
+      "treasures": ["the golden Madonnina from the top of the Duomo", "Leonardo's Last Supper, wall and all"],
       "clues": {
         "flag": ["{They} asked about a plain flag of vertical green, white and red stripes."],
         "landmark": [
@@ -165,15 +165,15 @@
     },
     {
       "country": "Spain",
-      "city": "Madrid",
-      "lat": 40.42, "lon": -3.7,
-      "about": "Madrid, in the middle of the Iberian Peninsula, is known for late dinners, grand art museums and its Royal Palace.",
+      "city": "Barcelona",
+      "lat": 41.39, "lon": 2.17,
+      "about": "Barcelona, capital of Catalonia, sits between the mountains and the Mediterranean, and is known for Gaudí's buildings, its beaches and its football club.",
       "treasures": ["the world's biggest paella pan", "a pair of golden flamenco shoes"],
       "clues": {
         "flag": ["{They} asked about a red and yellow striped flag with a coat of arms off to one side."],
         "language": ["{They} practised Castilian and a few words of Catalan."],
         "landmark": [
-          "{They} wanted to see Gaudí's Sagrada Família.",
+          "{They} wanted to walk through the Royal Palace in Madrid.",
           "{They} asked about the Alhambra palace in Granada."
         ],
         "culture": [
@@ -187,7 +187,7 @@
       "city": "Athens",
       "lat": 37.98, "lon": 23.73,
       "about": "Athens is one of the oldest cities in the world, watched over by the Acropolis. Democracy, theatre and the Olympic Games all trace their roots to this country.",
-      "treasures": ["Saggitarus golden cloth"],
+      "treasures": ["Sagittarius gold cloth"],
       "clues": {
         "flag": ["{They} asked about a flag with nine blue and white stripes and a white cross."],
         "language": ["{They} practised an alphabet that starts with alpha, beta, gamma."],
@@ -365,7 +365,7 @@
       "city": "Buenos Aires",
       "lat": -34.6, "lon": -58.38,
       "about": "Buenos Aires is famous for its wide avenues, café culture and late-night tango halls.",
-      "treasures": ["Valentin's Nintendo Switch"],
+      "treasures": ["Mirtha Legrand's 100th birthday cake candle"],
       "clues": {
         "flag": ["{They} asked about a light blue and white flag with a golden sun."],
         "landmark": ["{They} wanted to watch the Perito Moreno Glacier calve into the lake."],
@@ -418,7 +418,7 @@
       "city": "Caracas",
       "lat": 10.49, "lon": -66.88,
       "about": "Caracas sits in a long mountain valley, cut off from the Caribbean by the green wall of El Ávila. The country holds the highest waterfall on Earth and some of the oldest rock formations on the planet.",
-      "treasures": ["a golden arepa griddle"],
+      "treasures": ["one trillion bolivares"],
       "clues": {
         "flag": ["{They} asked about a yellow, blue and red flag with an arc of eight white stars."],
         "currency": ["{They} changed money into bolívares."],
@@ -627,6 +627,23 @@
           "{They} wanted to follow the candombe drummers through the streets at carnival.",
           "{They} asked about the stadium where the first World Cup final took place."
         ]
+      }
+    },    
+    {
+      "country": "Monkey Island",
+      "city": "Monkey Island",
+      "lat": 16.2, "lon": -73.6,
+      "about": "The legendary Monkey Island. How did you even get here in the first place, you don't have a head!",
+      "treasures": ["The Secret of Monkey Island"],
+      "clues": {
+        "flag": ["{They} asked about a black flag with a skull."],
+        "currency": ["{They} changed money into pieces o' eight."],
+        "landmark": [
+          "{They} wanted to go to the big Monkey Head.",
+          "{They} asked about visiting the cannibal village."
+        ],
+        "geography": ["{They} wanted to visit Herman Toothrot castaway site."],
+        "culture": ["{They} ordered grog made from a special root."]
       }
     }
   ]
