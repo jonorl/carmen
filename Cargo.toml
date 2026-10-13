@@ -14,3 +14,11 @@ serde_json = { version = "1", features = ["preserve_order"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 ureq = "2"
+
+# Small over fast: the whole game is downloaded on the web, and it's light
+# enough to run well either way.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

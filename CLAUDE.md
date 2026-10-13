@@ -38,10 +38,11 @@ The game was first written in Python (`carmen.py`, removed when it moved to Rust
 - `suspects.json`: suspects (the owner's family and friends), trait definitions and witness sentence templates.
 - `countries.json`: 33 countries (one of them the fictional Monkey Island, in the Caribbean) with about 220 clues, grouped by type (flag, currency, language, landmark, geography, culture), plus city coordinates, an `about` line and stealable treasures.
 - `assets/ne_110m_land.geojson`: Natural Earth 1:110m land outlines (public domain), drawn as the world map.
-- `assets/fonts/`: Pixelify Sans (the pixel font), VT323 (the printer's monospaced font, crisp at 20 px) and Noto Sans Regular (only for ₹, which Pixelify lacks; see `MISSING` in `ui.rs`). All SIL OFL; licences alongside.
+- `assets/fonts/`: Pixelify Sans (the pixel font), VT323 (the printer's monospaced font, crisp at 20 px) and Noto Sans Regular (only for ₹, which Pixelify lacks; see `MISSING` in `ui.rs`). All SIL OFL; licences alongside. All three are cut down by `tools/subset-fonts.sh` to Latin with accents, curly quotes, dashes, the ellipsis, € and ₹ (Noto to ₹ alone), without hinting, which took them from 850 KB to about 110 KB. A character outside that range shows as nothing: widen the script's ranges, re-download the full font and rerun it to add one.
 - `assets/suspects/`: dossier photos, 66x96 PNGs named like `jon-orlo.png` (`people::photo_name`). Made from real photos with `tools/portrait.sh PHOTO "Name" [CROP]` (ImageMagick: crop, shrink, 28 colours, no dithering). `build.rs` embeds whatever is there, so add a photo and rebuild. The source photos themselves are not kept in the repo.
 - `build.rs`: generates `photos.rs` (the embedded photo list) into `OUT_DIR`.
 - `tools/portrait.sh`: turns a photo into a dossier portrait.
+- `tools/subset-fonts.sh`: cuts the bundled fonts down to the characters the game shows (see `assets/fonts/`).
 - `.cargo/config.toml`: lets the wasm build leave quad-snd's browser audio functions undefined; `mq_js_bundle.js` supplies them at load time. Without it the web build fails to link.
 - `README.md`: player and editor docs.
 
@@ -57,7 +58,7 @@ The game was first written in Python (`carmen.py`, removed when it moved to Rust
 
 ## Web build
 
-`index.html` downloads `carmen.wasm` itself to show a loading bar, then hands it to macroquad's `load()`; `build-web.sh` writes the file's size into the page (`__WASM_BYTES__`), because a compressing web host's Content-Length is the compressed size. The download is about 4.3 MB, or 1.9 MB gzipped.
+`index.html` downloads `carmen.wasm` itself to show a loading bar, then hands it to macroquad's `load()`; `build-web.sh` writes the file's size into the page (`__WASM_BYTES__`), because a compressing web host's Content-Length is the compressed size. The download is about 2 MB, or 1.25 MB gzipped (smaller than a 1.44 MB floppy), thanks to the cut-down fonts and the size-first `[profile.release]` in `Cargo.toml` (`opt-level = "z"`, LTO, one codegen unit, stripped).
 
 The JS console shows `register_plugin is not defined` from the bundle's networking plugin; it's a bug in that bundled plugin, harmless here. Browsers keep audio silent until the first key press or click.
 
