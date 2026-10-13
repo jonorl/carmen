@@ -139,8 +139,11 @@ impl Progress {
             if self.raise(&name, detective.arrests) {
                 storage::write(STORE, &self.to_json());
             }
-            // Arrests made here while the server was out of reach.
-            if lookup && self.arrests(&name) > detective.arrests {
+            // Signing in puts them on file (and on the roster) even before
+            // their first arrest, and brings in any arrests made here while
+            // the server was out of reach. The server answers 0 for a name it
+            // doesn't know, so it's sent every time; it never lowers a tally.
+            if lookup {
                 self.send(&name, false);
             }
         }
