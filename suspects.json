@@ -257,7 +257,18 @@
       "vehicle": "scooter",
       "other": "showers with a kitchen sponge",
       "catchphrase": "Me van a llevar a Rafaela? Eso esta como a 20 Susanas de aca",
-      "es": { "other": "se baña con la esponja de lavar los platos" }
+      "es": { "other": "se baña con la esponja de cocina" }
+    },
+    {
+      "name": "Martin DKR",
+      "sex": "male",
+      "hobby": "gadgets",
+      "hair": "black",
+      "feature": "short stature",
+      "vehicle": "car",
+      "other": "soon will be able to tell dad jokes",
+      "catchphrase": "Toca de aca, cobani boton!",
+      "es": { "other": "dentro de poco va a empezar a contar dad jokes" }
     }
   ]
 }
