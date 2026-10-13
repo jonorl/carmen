@@ -60,7 +60,7 @@ The game was first written in Python (`carmen.py`, removed when it moved to Rust
 
 `index.html` downloads `carmen.wasm` itself to show a loading bar, then hands it to macroquad's `load()`; `build-web.sh` writes the file's size into the page (`__WASM_BYTES__`), because a compressing web host's Content-Length is the compressed size. The download is about 2 MB, or 1.25 MB gzipped (smaller than a 1.44 MB floppy), thanks to the cut-down fonts and the size-first `[profile.release]` in `Cargo.toml` (`opt-level = "z"`, LTO, one codegen unit, stripped).
 
-The JS console shows `register_plugin is not defined` from the bundle's networking plugin; it's a bug in that bundled plugin, harmless here. Browsers keep audio silent until the first key press or click.
+The bundle's networking plugin (unused here) assigns to an undeclared `register_plugin`, which strict mode rejects; `index.html` declares it first so the console stays clean. Browsers keep audio silent until the first key press or click.
 
 macroquad compiles to `wasm32-unknown-unknown` and runs in a canvas through its own JS loader (no wasm-bindgen). Things that differ in the browser: `std::time::SystemTime` panics (use `miniquad::date::now()`), there is no filesystem (the embedded data is used) and no command-line options, and there is no Quit button (`CAN_QUIT`).
 

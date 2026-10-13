@@ -4,6 +4,11 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Where in the World?</title>
+  <meta name="description" content="A remake of the 1990 detective game Where in the World is Carmen Sandiego?, where the thieves are family and friends. Chase them around the world in your browser, in English or Spanish.">
+  <meta property="og:title" content="Where in the World?">
+  <meta property="og:description" content="A family-and-friends remake of Where in the World is Carmen Sandiego?, playable in the browser.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://jonathan-orlowski.dev/carmen/">
   <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
   <link rel="apple-touch-icon" href="apple-touch-icon.png">
   <style>
@@ -24,6 +29,9 @@
 <body>
   <canvas id="glcanvas" tabindex="1"></canvas>
   <div id="loading"><div>WHERE IN THE WORLD?</div><div class="bar"><div class="fill"></div></div><div class="status">Loading…</div></div>
+  <!-- The bundle's unused networking plugin assigns to an undeclared
+       register_plugin, which strict mode rejects with an error. -->
+  <script>var register_plugin;</script>
   <script src="mq_js_bundle.js"></script>
   <script src="storage.js"></script>
   <script src="input.js"></script>
