@@ -12,7 +12,7 @@ miniquad_add_plugin({
     function make() {
       box = document.createElement("input");
       box.type = "text";
-      box.maxLength = 20;
+      box.maxLength = 8;
       box.autocomplete = "off";
       box.setAttribute("autocapitalize", "words");
       box.enterKeyHint = "done";

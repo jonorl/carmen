@@ -11,6 +11,7 @@ mod game;
 mod jail;
 mod landmarks;
 mod map;
+mod net;
 mod people;
 mod pixels;
 mod places;
@@ -38,6 +39,7 @@ use game::{
 use jail::Jail;
 use map::{Land, MapView};
 use printer::Printer;
+use carmen_shared::MAX_NAME;
 use progress::Progress;
 use rng::Rng;
 use scene::TimeOfDay;
@@ -215,6 +217,9 @@ const HOUR_SECONDS: f64 = 0.32;
 
 /// Characters per second for the typewriter effect.
 const TYPING_SPEED: f64 = 90.0;
+/// The longest headquarters waits for the agency's server before printing
+/// the rank from this device's records.
+const CHECK_SECONDS: f64 = 4.0;
 
 fn tone_style(tone: Tone) -> (Color, bool) {
     match tone {
@@ -408,6 +413,9 @@ impl Case {
 /// Where headquarters is up to.
 enum Step {
     Name,
+    /// Identified, and waiting (since the time given) for the agency's
+    /// server to say what rank they've reached.
+    Checking(f64),
     Assignment,
     Briefing,
 }
@@ -610,10 +618,11 @@ impl App {
                 self.menu = Some(i);
             }
         }
+        self.progress.poll();
         // The screen ignores input under an open menu or dossier.
         self.ui.enabled = self.menu.is_none() && self.dossier.is_none();
         let mut action = match &mut self.screen {
-            Screen::Hq(hq) => hq_screen(&mut self.ui, hq, &mut self.name, &self.progress, self.rank_override, &mut self.sounds),
+            Screen::Hq(hq) => hq_screen(&mut self.ui, hq, &mut self.name, &mut self.progress, self.rank_override, &mut self.sounds),
             Screen::Case(case) if case.computing.is_some_and(|t| get_time() - t >= sound::COMPUTE_SECONDS) => Some(Action::Computed),
             Screen::Case(case) if walked(case) => case.walking.map(|(place, _)| Action::Arrive(place)),
             Screen::Case(case) => {
@@ -880,7 +889,7 @@ fn hq_screen(
     ui: &mut Ui,
     hq: &mut Hq,
     name: &mut String,
-    progress: &Progress,
+    progress: &mut Progress,
     rank_override: Option<usize>,
     sounds: &mut Option<Sounds>,
 ) -> Option<Action> {
@@ -927,10 +936,10 @@ fn hq_screen(
                     // On phones a real text box covers the field, for their keyboards.
                     touch::want(ui.to_window(input));
                     if let Some(text) = touch::typed() {
-                        *name = text.chars().take(20).collect();
+                        *name = text.chars().take(MAX_NAME).collect();
                     }
                     for c in typed.iter().filter(|c| !c.is_control()) {
-                        if name.chars().count() < 20 {
+                        if name.chars().count() < MAX_NAME {
                             name.push(*c);
                             if let Some(s) = sounds {
                                 s.click();
@@ -943,12 +952,24 @@ fn hq_screen(
                     if matches!(key, Some(KeyCode::Enter | KeyCode::KpEnter)) || touch::entered() {
                         hq.printer.type_now(display_name(name));
                         let who = display_name(name).to_string();
-                        let rank = RANKS[rank_for(progress.arrests(name))].name;
-                        hq.printer.print(&format!("\n\nYou have been identified, {who}.\n\nYour rank: {rank}."));
-                        hq.step = Step::Assignment;
+                        hq.printer.print(&format!("\n\nYou have been identified, {who}."));
+                        progress.look_up(name);
+                        hq.step = Step::Checking(get_time());
                     }
                 }
                 "Type your name and press Enter."
+            }
+            Step::Checking(since) => {
+                ui.text("CHECKING RECORDS", r.x, r.y + 14.0, BIG, YELLOW, true);
+                // Rather a stale rank than a long wait: a late answer still
+                // counts, it just isn't printed.
+                let given_up = get_time() - since > CHECK_SECONDS;
+                if !busy && (!progress.looking_up(name) || given_up) {
+                    let rank = RANKS[rank_for(progress.arrests(name))].name;
+                    hq.printer.print(&format!("\n\nYour rank: {rank}."));
+                    hq.step = Step::Assignment;
+                }
+                "Checking the agency's records…"
             }
             Step::Assignment => {
                 ui.text("YOUR RANK", r.x, r.y + 14.0, BIG, YELLOW, true);

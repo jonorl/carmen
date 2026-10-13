@@ -19,7 +19,7 @@ Options go after `--`, for example `cargo run -- --seed 42`:
 
 To give the game to someone, run `cargo build --release` and send them `target/release/carmen` (`carmen.exe` on Windows, built on Windows). The data files are built into it, so rebuild after editing them.
 
-To put it on a website, run `./build-web.sh` (the first time, also `rustup target add wasm32-unknown-unknown`) and upload the five files in `dist/` to any web host. They're plain static files, so nothing needs to run on the server.
+To put it on a website, run `./build-web.sh` (the first time, also `rustup target add wasm32-unknown-unknown`) and upload the six files in `dist/` to any web host. They're plain static files. Pushing to `main` does this for you: GitHub Actions builds the game and puts it on Cloudflare Pages (`.github/workflows/deploy-web.yml`, which needs the `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` secrets and a Pages project called `carmen`).
 
 On a phone held upright, the picture moves above the text panel and buttons, and a text box pops up for typing your name. Turned sideways, it's the original layout.
 
@@ -35,7 +35,11 @@ Each interview costs 3 hours, flights take longer the farther you go, and you sl
 
 ## Ranks
 
-As in the original, you start as a Rookie and get promoted as you make arrests. Each rank's cases are harder, and each promotion takes more arrests than the last. After every arrest the printer says how many more you need. Your arrests are saved under your name: in a file on your computer (`~/.local/share/where-in-the-world/progress.json` on Linux, the app-data folder on Windows and macOS), or in the browser's storage on the website, so each browser keeps its own.
+As in the original, you start as a Rookie and get promoted as you make arrests. Each rank's cases are harder, and each promotion takes more arrests than the last. After every arrest the printer says how many more you need. Your arrests are saved under your name, which can be up to 8 characters (there are no passwords: it's for family and friends). They're kept on the agency's server, so your rank follows you to any computer or phone, and also on the device itself: in a file on your computer (`~/.local/share/where-in-the-world/progress.json` on Linux, the app-data folder on Windows and macOS), or in the browser's storage on the website. If the server can't be reached, the game carries on with the device's copy, and the two catch up next time.
+
+## The server
+
+`server/` keeps the arrests in Postgres. It's built into the image `ghcr.io/jonorl/carmen-api` and deployed to the VPS by `.github/workflows/deploy-server.yml` when `server/` or `shared/` change. It reads `CARMEN_DB_URL`, `PORT_CARMEN` (default 8085) and `FRONTEND_URL_CARMEN` (the game's addresses, separated by commas, which browsers may call it from), and creates its table itself on start. The game calls `https://carmen-api.jonathan-orlowski.dev` unless it's built with `CARMEN_API` set to another address, or to nothing to keep progress on the device only. To try it locally, run Postgres, then `CARMEN_DB_URL=postgres://... FRONTEND_URL_CARMEN=http://localhost:8000 cargo run -p carmen-server`, and build the game with `CARMEN_API=http://localhost:8085 ./build-web.sh`.
 
 | Rank | Arrests | Flights to the hideout | Time allowance |
 |---|---|---|---|

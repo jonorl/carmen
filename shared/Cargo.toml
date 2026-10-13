@@ -1,0 +1,8 @@
+[package]
+name = "carmen-shared"
+version = "0.1.0"
+edition = "2024"
+description = "What the game and its server agree on."
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }

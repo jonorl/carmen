@@ -1,0 +1,8 @@
+# Only the server's image is built with Docker; it needs the workspace's
+# manifests and sources, not the game's assets or build output.
+target
+dist
+assets
+web
+tools
+.git
