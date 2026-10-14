@@ -4,6 +4,10 @@ A remake of Brøderbund's 1990 *Where in the World is Carmen Sandiego?*, in Rust
 
 Play it at **https://jonathan-orlowski.dev/carmen**.
 
+![A case from start to finish: the briefing at headquarters, a flight, a henchman, the crime computer, a warning in the final city, the chase and the jail](docs/demo.gif)
+
+The whole game is a 1.3 MB download: small enough for a 1.44 MB floppy disk, if you still have one.
+
 ## Playing
 
 Someone in the family has stolen a treasure. Follow the trail around the world, get a warrant from the crime computer and make the arrest before the deadline.
@@ -13,7 +17,7 @@ Someone in the family has stolen a treasure. Follow the trail around the world, 
 - **Crime computer**: enter what you've learned. When only one person fits, you get a warrant.
 - **Notes** (the notebook): everything witnesses have told you, the deadline and your warrant.
 
-V.I.L.E.'s henchmen show up when you're on the right track, and the final city gets dangerous. When witnesses say the thief is still in town, you're close: one of the three places is the hideout. With a warrant for the right person you watch the arrest. Without one, they get away.
+S.U.R.M.E.'s henchmen show up when you're on the right track, and the final city gets dangerous. When witnesses say the thief is still in town, you're close: one of the three places is the hideout. With a warrant for the right person you watch the arrest. Without one, they get away.
 
 The clock starts on Monday at 9 a.m. Each interview takes 3 hours, longer flights take longer, and you sleep from 11 p.m. to 7 a.m.
 
@@ -34,7 +38,7 @@ As in the original, you start as a Rookie and are promoted as you make arrests. 
 | Ace Detective | 10 | 6 | about 1 wrong turn |
 | Super Sleuth | 15 | 6 | almost none |
 
-Your arrests are saved under your name, which can be up to 8 characters. There are no passwords: it's for family and friends. They're kept on the bureau's server, so your rank follows you to any device, and on the device itself, so the game carries on offline and catches up later. Bureau → Detective roster lists everyone.
+Your arrests are saved under your name, which can be up to 8 characters. There are no passwords: it's for family and friends. They're kept on the bureau's server, so your rank follows you to any device, and on the device itself, so the game carries on offline and catches up later: in the browser's storage, or on a computer in `~/.local/share/where-in-the-world/` (Linux), `%APPDATA%\where-in-the-world\` (Windows) or `~/Library/Application Support/where-in-the-world/` (macOS). Bureau → Detective roster lists everyone.
 
 ## Running it yourself
 
@@ -67,13 +71,32 @@ Pushing to `main` deploys it to Cloudflare Pages through GitHub Actions (`.githu
 - `PORT_CARMEN`: the port to listen on (default 8085).
 - `FRONTEND_URL_CARMEN`: the game's addresses, separated by commas, which browsers may call it from.
 
-It creates its table itself.
+It creates its table itself. The workflow needs the `GHCR_TOKEN` (with `write:packages`), `VPS_HOST`, `VPS_USER` and `VPS_SSH_KEY` secrets: the last is a private key whose public half is in the VPS user's `~/.ssh/authorized_keys`.
 
 The game calls `https://carmen-api.jonathan-orlowski.dev`. Build it with `CARMEN_API` set to use another address, or set to nothing to keep progress on the device only. To try it all locally:
 
 1. Run Postgres.
 2. Start the server with `CARMEN_DB_URL=postgres://... FRONTEND_URL_CARMEN=http://localhost:8000 cargo run -p carmen-server`.
 3. Build the game with `CARMEN_API=http://localhost:8085 ./build-web.sh`.
+
+## Working on the code
+
+`src/` has `main.rs` (start-up, layout and the game loop), `lang.rs` (the two languages) and `ui.rs` (fonts, frames, buttons) at the top, and four folders:
+
+- `rules/`: the game itself, with no drawing: the rules, the data files and the random numbers. The tests drive it.
+- `screens/`: what's on screen and what you click: headquarters, a case and its text panel, the windows over them and the menu bar.
+- `art/`: pictures made in code or traced from the original: postcards, places, portraits, sprites, the jail and the map.
+- `device/`: sound, saving, the server and the phone keyboard.
+
+`CLAUDE.md` describes every file and how the pieces fit together. Day to day:
+
+- `cargo test --workspace` runs the tests, including hundreds of simulated cases in both languages.
+- `cargo clippy --workspace --all-targets` should stay free of warnings.
+- `cargo fmt --all` formats the code at 140 columns (`rustfmt.toml`).
+
+Pushes to `main` only deploy if the tests and `--check` pass.
+
+The fonts are cut down to the characters the game shows, to keep the download small. If a new character shows up blank (a name in another alphabet, a new currency sign), add its range to `tools/subset-fonts.sh`, put the full font back in `assets/fonts/` and run the script.
 
 ## Putting your people in: `suspects.json`
 
@@ -133,3 +156,7 @@ A clue should point to its country without naming it or the arrival city. Clues 
 - The original game: *Where in the World is Carmen Sandiego?* © 1990 Brøderbund Software. This is a fan remake, made for fun. The animations, jail and sounds were traced and cut from recordings of the original.
 - Map: Natural Earth (public domain).
 - Fonts: Pixelify Sans, VT323 and Noto Sans, under the SIL Open Font License (licences in `assets/fonts/`).
+
+## Licence
+
+The code is under the MIT licence (`LICENSE`). That doesn't cover the original game's art and sounds traced into `assets/sprites/` and `assets/sounds/`, which belong to their owners, the photos of real people in `assets/suspects/`, or the fonts, which keep their own licences.

@@ -6,6 +6,8 @@ on:
     paths-ignore:
       - 'server/**'
       - '**.md'
+      - 'docs/**'
+      - 'LICENSE'
       - '.github/workflows/deploy-server.yml'
   workflow_dispatch:
 
