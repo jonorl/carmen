@@ -27,6 +27,17 @@ jobs:
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
 
+      # The tests and the data check run the desktop build, which links against these.
+      - name: Install system libraries
+        run: sudo apt-get update && sudo apt-get install -y pkg-config libx11-dev libxi-dev libgl1-mesa-dev libasound2-dev
+
+      # A broken data file would otherwise only show when the game fails to start.
+      - name: Test
+        run: cargo test -p carmen -p carmen-shared
+
+      - name: Check the data files
+        run: cargo run -- --check
+
       - name: Build
         run: ./build-web.sh
 

@@ -87,8 +87,11 @@ async fn roster(State(pool): State<PgPool>) -> Answer<Json<Vec<Detective>>> {
 
 async fn fetch(State(pool): State<PgPool>, Path(name): Path<String>) -> Answer<Json<Detective>> {
     let name_key = checked(&name)?;
-    let row: Option<(String, i32)> =
-        sqlx::query_as("SELECT name, arrests FROM detectives WHERE name_key = $1").bind(&name_key).fetch_optional(&pool).await.map_err(trouble)?;
+    let row: Option<(String, i32)> = sqlx::query_as("SELECT name, arrests FROM detectives WHERE name_key = $1")
+        .bind(&name_key)
+        .fetch_optional(&pool)
+        .await
+        .map_err(trouble)?;
     Ok(Json(match row {
         Some((name, arrests)) => Detective { name, arrests: arrests.max(0) as u32 },
         None => Detective { name: tidy(&name), arrests: 0 },

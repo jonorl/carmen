@@ -8,22 +8,14 @@ fn main() {
     println!("cargo:rerun-if-changed=assets/suspects");
     let mut photos: Vec<_> = fs::read_dir("assets/suspects")
         .map(|dir| {
-            dir.filter_map(Result::ok)
-                .map(|entry| entry.path())
-                .filter(|path| path.extension().is_some_and(|ext| ext == "png"))
-                .collect()
+            dir.filter_map(Result::ok).map(|entry| entry.path()).filter(|path| path.extension().is_some_and(|ext| ext == "png")).collect()
         })
         .unwrap_or_default();
     photos.sort();
-    let mut code =
-        String::from("/// Dossier photos by file name (without .png), from assets/suspects/.\n");
+    let mut code = String::from("/// Dossier photos by file name (without .png), from assets/suspects/.\n");
     code.push_str("pub static PHOTOS: &[(&str, &[u8])] = &[\n");
     for path in photos {
-        let name = path
-            .file_stem()
-            .unwrap_or_default()
-            .to_string_lossy()
-            .into_owned();
+        let name = path.file_stem().unwrap_or_default().to_string_lossy().into_owned();
         let full = fs::canonicalize(&path).expect("photo path");
         code.push_str(&format!("    ({name:?}, include_bytes!({full:?})),\n"));
     }

@@ -31,11 +31,7 @@ impl Jail {
         };
         let (w, h) = (W * SCALE, H * SCALE);
         let x = (r.x + (r.w - w) / 2.0).round();
-        let params = DrawTextureParams {
-            dest_size: Some(vec2(w, h)),
-            source: Some(Rect::new(frame * W, 0.0, W, H)),
-            ..Default::default()
-        };
+        let params = DrawTextureParams { dest_size: Some(vec2(w, h)), source: Some(Rect::new(frame * W, 0.0, W, H)), ..Default::default() };
         draw_texture_ex(&self.strip, x, r.y + 4.0, WHITE, params);
     }
 }
