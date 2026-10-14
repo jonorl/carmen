@@ -6,47 +6,47 @@
 use macroquad::audio::{PlaySoundParams, Sound, load_sound_from_bytes, play_sound, stop_sound};
 
 /// 0.7 s of a printer at work, cut from the middle of a burst so it loops.
-const PRINTING: &[u8] = include_bytes!("../assets/sounds/printer.ogg");
+const PRINTING: &[u8] = include_bytes!("../../assets/sounds/printer.ogg");
 /// One key press.
-const KEY: &[u8] = include_bytes!("../assets/sounds/key.ogg");
+const KEY: &[u8] = include_bytes!("../../assets/sounds/key.ogg");
 /// One tick of a clock.
-const TICK: &[u8] = include_bytes!("../assets/sounds/tick.ogg");
+const TICK: &[u8] = include_bytes!("../../assets/sounds/tick.ogg");
 /// Five footsteps over 1.86 s.
-const WALKING: &[u8] = include_bytes!("../assets/sounds/walking.ogg");
+const WALKING: &[u8] = include_bytes!("../../assets/sounds/walking.ogg");
 /// The chase before an arrest: a sting, the suspect's running feet, a jingle
 /// under "There goes the suspect!", police whistles and shouts, and the
 /// police running after them. 17.6 s.
-const CHASE: &[u8] = include_bytes!("../assets/sounds/chase.ogg");
+const CHASE: &[u8] = include_bytes!("../../assets/sounds/chase.ogg");
 /// One footstep on the way to jail, 0.667 s, so that looping it keeps the
 /// officer's pace.
-const FOOTSTEP: &[u8] = include_bytes!("../assets/sounds/footstep.ogg");
+const FOOTSTEP: &[u8] = include_bytes!("../../assets/sounds/footstep.ogg");
 /// The music over the jail when the suspect is caught: 14.2 s, ending just
 /// before the clank.
-const CAPTURED: &[u8] = include_bytes!("../assets/sounds/captured.ogg");
+const CAPTURED: &[u8] = include_bytes!("../../assets/sounds/captured.ogg");
 /// The clank as the prisoner grabs the bars, after the music: 0.55 s.
-const CLANK: &[u8] = include_bytes!("../assets/sounds/clank.ogg");
+const CLANK: &[u8] = include_bytes!("../../assets/sounds/clank.ogg");
 /// The sad tune after the chase when the suspect got away: 6.09 s, cut
 /// where the officer's first footstep breaks it off.
-const DISAPPOINT: &[u8] = include_bytes!("../assets/sounds/disappoint.ogg");
+const DISAPPOINT: &[u8] = include_bytes!("../../assets/sounds/disappoint.ogg");
 /// The V.I.L.E. henchmen's tunes, one each: the one striding across (4.0 s),
 /// the one sneaking past with a sack (3.2 s) and the one popping up (4.4 s).
 const HENCHMEN: [&[u8]; 3] = [
-    include_bytes!("../assets/sounds/henchman-stride.ogg"),
-    include_bytes!("../assets/sounds/henchman-sneak.ogg"),
-    include_bytes!("../assets/sounds/henchman-popup.ogg"),
+    include_bytes!("../../assets/sounds/henchman-stride.ogg"),
+    include_bytes!("../../assets/sounds/henchman-sneak.ogg"),
+    include_bytes!("../../assets/sounds/henchman-popup.ogg"),
 ];
 /// The final city's warnings, each its weapon's sound and then a short tune:
 /// an axe spinning in and thudding home (4.9 s), a knife thrown and twanging
 /// (4.1 s), a pistol shot (4.4 s).
 const DANGERS: [&[u8]; 3] = [
-    include_bytes!("../assets/sounds/danger-axe.ogg"),
-    include_bytes!("../assets/sounds/danger-knife.ogg"),
-    include_bytes!("../assets/sounds/danger-gun.ogg"),
+    include_bytes!("../../assets/sounds/danger-axe.ogg"),
+    include_bytes!("../../assets/sounds/danger-knife.ogg"),
+    include_bytes!("../../assets/sounds/danger-gun.ogg"),
 ];
 /// Music for travelling, 5 s, looped from take-off until landing.
-const TRAVELLING: &[u8] = include_bytes!("../assets/sounds/travelling.ogg");
+const TRAVELLING: &[u8] = include_bytes!("../../assets/sounds/travelling.ogg");
 /// The crime computer whirring over a warrant: 2.1 s.
-const COMPUTING: &[u8] = include_bytes!("../assets/sounds/computing.ogg");
+const COMPUTING: &[u8] = include_bytes!("../../assets/sounds/computing.ogg");
 /// How long the computing recording lasts; the lights flash for as long.
 pub const COMPUTE_SECONDS: f64 = 2.1;
 /// How long the walking recording lasts, so the footprints keep pace with it.

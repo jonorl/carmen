@@ -5,9 +5,9 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::data::{Country, Data, SEXES, sex_shown};
 use crate::lang::{Lang, lang, tr};
-use crate::rng::Rng;
+use crate::rules::data::{Country, Data, SEXES, sex_shown};
+use crate::rules::rng::Rng;
 
 pub fn game_title() -> &'static str {
     tr("WHERE IN THE WORLD?", "¿DÓNDE EN EL MUNDO?")
@@ -1068,7 +1068,7 @@ mod tests {
     use std::path::Path;
 
     fn data() -> Rc<Data> {
-        match crate::data::load(Some(Path::new(env!("CARGO_MANIFEST_DIR")))) {
+        match crate::rules::data::load(Some(Path::new(env!("CARGO_MANIFEST_DIR")))) {
             Ok((data, _)) => Rc::new(data),
             Err(_) => panic!("the data files have errors; run cargo run -- --check"),
         }

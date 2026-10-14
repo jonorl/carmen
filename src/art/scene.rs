@@ -6,10 +6,10 @@
 
 use macroquad::prelude::*;
 
-use crate::data::Country;
-use crate::landmarks;
-use crate::pixels::{Canvas, Rgb, dither, hash, mix, scale};
-use crate::rng::Rng;
+use crate::art::landmarks;
+use crate::art::pixels::{Canvas, Rgb, dither, hash, mix, scale};
+use crate::rules::data::Country;
+use crate::rules::rng::Rng;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TimeOfDay {

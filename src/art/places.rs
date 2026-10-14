@@ -4,9 +4,9 @@
 
 use macroquad::prelude::*;
 
-use crate::game::PLACES;
+use crate::art::pixels::{Canvas, Rgb, text_width};
 use crate::lang::{self, Lang, lang, tr};
-use crate::pixels::{Canvas, Rgb, text_width};
+use crate::rules::game::PLACES;
 
 pub const ART_W: i32 = 104;
 pub const ART_H: i32 = 68;

@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 
 use macroquad::prelude::*;
 
-use crate::sound::Sounds;
+use crate::device::sound::Sounds;
 use crate::ui::{INK, PAPER, Ui, fill, hex, outline};
 
 /// Characters per line; the paper font is monospaced, so wrapping is by count.

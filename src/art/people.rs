@@ -5,10 +5,10 @@
 
 use macroquad::prelude::*;
 
-use crate::data::Suspect;
-use crate::game::PLACES;
-use crate::pixels::{Canvas, Rgb, dither, hash, scale};
-use crate::rng::Rng;
+use crate::art::pixels::{Canvas, Rgb, dither, hash, scale};
+use crate::rules::data::Suspect;
+use crate::rules::game::PLACES;
+use crate::rules::rng::Rng;
 
 pub const PORTRAIT_W: i32 = 66;
 pub const PORTRAIT_H: i32 = 96;

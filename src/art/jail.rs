@@ -16,7 +16,7 @@ pub struct Jail {
 
 impl Jail {
     pub fn new() -> Jail {
-        let strip = Texture2D::from_file_with_format(include_bytes!("../assets/sprites/jail.png"), Some(ImageFormat::Png));
+        let strip = Texture2D::from_file_with_format(include_bytes!("../../assets/sprites/jail.png"), Some(ImageFormat::Png));
         strip.set_filter(FilterMode::Nearest);
         Jail { strip }
     }

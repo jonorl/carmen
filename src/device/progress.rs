@@ -10,8 +10,8 @@ use std::collections::BTreeMap;
 
 use carmen_shared::{Detective, Tally};
 
-use crate::net::{self, Request};
-use crate::storage;
+use crate::device::net::{self, Request};
+use crate::device::storage;
 
 /// The server's address, from CARMEN_API when the game was built (default:
 /// the live one). Built with CARMEN_API empty, it keeps to this device.

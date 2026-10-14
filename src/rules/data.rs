@@ -7,8 +7,8 @@ use std::path::Path;
 
 use serde_json::Value;
 
-use crate::game::RANKS;
 use crate::lang::{Lang, lang};
+use crate::rules::game::RANKS;
 
 pub const CLUE_TYPES: [&str; 6] = ["flag", "currency", "language", "landmark", "geography", "culture"];
 /// A suspect's sex, as on the original's crime computer; witnesses say he or she.
@@ -22,8 +22,8 @@ const RESERVED_KEYS: [&str; 5] = ["bio", "catchphrase", "name", "sex", "skin"];
 pub const SKIN_TONES: [&str; 6] = ["light", "rosy", "olive", "tan", "brown", "dark"];
 
 // Built into the binary so a release build can be handed to someone on its own.
-const EMBEDDED_COUNTRIES: &str = include_str!("../countries.json");
-const EMBEDDED_SUSPECTS: &str = include_str!("../suspects.json");
+const EMBEDDED_COUNTRIES: &str = include_str!("../../countries.json");
+const EMBEDDED_SUSPECTS: &str = include_str!("../../suspects.json");
 
 /// Something said in English, and in Spanish if the data has it.
 #[derive(Clone, Debug, Default)]

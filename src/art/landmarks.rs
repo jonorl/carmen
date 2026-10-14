@@ -5,8 +5,8 @@
 //!
 //! To add a country, add a function and a line in `paint`.
 
-use crate::pixels::{Rgb, dither, mix, scale};
-use crate::scene::{LAMP, Painter, TimeOfDay};
+use crate::art::pixels::{Rgb, dither, mix, scale};
+use crate::art::scene::{LAMP, Painter, TimeOfDay};
 
 /// Paint the scene for `country`. False if there isn't one.
 pub fn paint(p: &mut Painter, country: &str) -> bool {

@@ -9,7 +9,7 @@
 
 use std::cell::Cell;
 
-use crate::storage;
+use crate::device::storage;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Lang {

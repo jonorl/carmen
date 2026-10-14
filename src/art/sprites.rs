@@ -201,29 +201,35 @@ pub struct Cast {
 impl Cast {
     pub fn new() -> Cast {
         Cast {
-            suspect: Anim::new(include_bytes!("../assets/sprites/suspect.png"), (47.0, 50.0), 15.0, 4.0, &[0, 1, 2, 3, 4, 5, 6, 7]),
-            police: Anim::new(include_bytes!("../assets/sprites/police.png"), (49.0, 49.0), 20.0, 4.0, &[0, 1, 2, 3, 4]),
-            march: Anim::new(include_bytes!("../assets/sprites/march.png"), (49.0, 49.0), 12.0, -2.0, &[0, 1, 2, 3, 4, 5]),
+            suspect: Anim::new(include_bytes!("../../assets/sprites/suspect.png"), (47.0, 50.0), 15.0, 4.0, &[0, 1, 2, 3, 4, 5, 6, 7]),
+            police: Anim::new(include_bytes!("../../assets/sprites/police.png"), (49.0, 49.0), 20.0, 4.0, &[0, 1, 2, 3, 4]),
+            march: Anim::new(include_bytes!("../../assets/sprites/march.png"), (49.0, 49.0), 12.0, -2.0, &[0, 1, 2, 3, 4, 5]),
             slumped: Anim::new(
-                include_bytes!("../assets/sprites/slumped.png"),
+                include_bytes!("../../assets/sprites/slumped.png"),
                 (39.0, 45.0),
                 15.0,
                 -2.0,
                 &[0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9],
             ),
-            stride: Anim::new(include_bytes!("../assets/sprites/henchman-stride.png"), (46.0, 42.0), 15.0, 2.0, &[0, 1, 2, 3, 4, 5, 6, 7]),
+            stride: Anim::new(
+                include_bytes!("../../assets/sprites/henchman-stride.png"),
+                (46.0, 42.0),
+                15.0,
+                2.0,
+                &[0, 1, 2, 3, 4, 5, 6, 7],
+            ),
             sneak: Anim::new(
-                include_bytes!("../assets/sprites/henchman-sneak.png"),
+                include_bytes!("../../assets/sprites/henchman-sneak.png"),
                 (45.0, 41.0),
                 20.0,
                 -2.0,
                 &[0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7],
             ),
-            popup: PopUp { strip: strip(include_bytes!("../assets/sprites/henchman-popup.png")) },
+            popup: PopUp { strip: strip(include_bytes!("../../assets/sprites/henchman-popup.png")) },
             danger: Danger {
-                axe: strip(include_bytes!("../assets/sprites/danger-axe.png")),
-                knife: strip(include_bytes!("../assets/sprites/danger-knife.png")),
-                gun: strip(include_bytes!("../assets/sprites/danger-gun.png")),
+                axe: strip(include_bytes!("../../assets/sprites/danger-axe.png")),
+                knife: strip(include_bytes!("../../assets/sprites/danger-knife.png")),
+                gun: strip(include_bytes!("../../assets/sprites/danger-gun.png")),
             },
         }
     }
