@@ -24,11 +24,17 @@
     }
     #loading .bar { width: min(320px, 80vw); height: 16px; border: 3px double #fff; padding: 2px; }
     #loading .fill { width: 0; height: 100%; background: #fff; }
+    /* Read by screen readers and AI agents, not shown: the game itself is a canvas. */
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
   </style>
 </head>
 <body>
-  <canvas id="glcanvas" tabindex="1"></canvas>
-  <div id="loading"><div>WHERE IN THE WORLD?</div><div class="bar"><div class="fill"></div></div><div class="status">Loading…</div></div>
+  <main>
+    <h1 class="sr-only">Where in the World?</h1>
+    <p class="sr-only">A fan remake of the 1990 detective game Where in the World is Carmen Sandiego?, with family and friends as the thieves, in English or Spanish. It's drawn on the canvas below and played with the mouse or touch and the keyboard. Source code: <a href="https://github.com/jonorl/carmen">github.com/jonorl/carmen</a>.</p>
+    <canvas id="glcanvas" tabindex="0" role="application" aria-label="Where in the World? game screen"></canvas>
+  </main>
+  <div id="loading"><div aria-hidden="true">WHERE IN THE WORLD?</div><div class="bar" role="progressbar" aria-label="Loading the game" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div class="fill"></div></div><div class="status" aria-live="polite">Loading…</div></div>
   <!-- The bundle's unused networking plugin assigns to an undeclared
        register_plugin, which strict mode rejects with an error. -->
   <script>var register_plugin;</script>
@@ -43,6 +49,7 @@
     (async function () {
       const total = Number("__WASM_BYTES__") || 0;
       const overlay = document.getElementById("loading");
+      const bar = overlay.querySelector(".bar");
       const fill = overlay.querySelector(".fill");
       const status = overlay.querySelector(".status");
       let source = "carmen.wasm";
@@ -59,6 +66,7 @@
           if (total) {
             const percent = Math.min(100, Math.round((got * 100) / total));
             fill.style.width = percent + "%";
+            bar.setAttribute("aria-valuenow", percent);
             status.textContent = "Loading… " + percent + "%";
           } else {
             status.textContent = "Loading… " + (got / 1048576).toFixed(1) + " MB";
@@ -69,6 +77,7 @@
         // No streaming (very old browser): let the loader fetch it plainly.
       }
       fill.style.width = "100%";
+      bar.setAttribute("aria-valuenow", 100);
       status.textContent = "Starting…";
       load(source);
       // The loader sets wasm_exports once the game is running.

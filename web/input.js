@@ -15,6 +15,7 @@ miniquad_add_plugin({
       box.maxLength = 8;
       box.autocomplete = "off";
       box.setAttribute("autocapitalize", "words");
+      box.setAttribute("aria-label", "Detective name");
       box.enterKeyHint = "done";
       // 16px stops iPhones zooming in on the box.
       box.style.cssText =
