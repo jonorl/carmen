@@ -520,11 +520,12 @@ pub(crate) fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Op
     let value_of = |case: &Case, key: &str| case.game.warrant.iter().find(|(k, _)| k == key).and_then(|(_, v)| v.clone());
 
     let Some(f) = editing else {
-        // The menu: each field and its current value, then the commands.
-        let rows = fields.len() + 3;
-        let row_h = (s.h / (rows as f32 + 0.25)).min(17.0).floor();
+        // The menu: each field and its current value, then the commands. The
+        // fields get the room the commands don't need, so they're easy to pick.
+        let row_h = (s.h / (fields.len() + 3) as f32).min(17.0).floor();
+        let field_h = ((s.h - 2.5 * row_h) / fields.len() as f32).min(24.0).floor();
         for (i, (key, label, values)) in fields.iter().enumerate() {
-            let row = Rect::new(s.x, s.y + i as f32 * row_h, s.w, row_h);
+            let row = Rect::new(s.x, s.y + i as f32 * field_h, s.w, field_h);
             let value = value_of(case, key).unwrap_or_default();
             let shown = if value.is_empty() { String::new() } else { case.game.shown(key, &value) };
             if screen_row(ui, row, &format!("{}:", label.to_uppercase()), &shown, false) {
@@ -540,7 +541,7 @@ pub(crate) fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Op
                 }
             }
         }
-        let y = s.y + (fields.len() as f32 + 0.25) * row_h;
+        let y = s.y + fields.len() as f32 * field_h + 0.25 * row_h;
         let row = |n: f32| Rect::new(s.x, y + n * row_h, s.w, row_h);
         if screen_row(ui, row(0.0), &tr(format!("COMPUTE ({WARRANT_HOURS} H)"), format!("COMPUTAR ({WARRANT_HOURS} H)")), "", false) {
             return Some(Action::Compute);
@@ -549,9 +550,6 @@ pub(crate) fn crime_menu(ui: &mut Ui, case: &mut Case, screen: Rect, editing: Op
             for entry in case.game.warrant.iter_mut() {
                 entry.1 = None;
             }
-        }
-        if screen_row(ui, row(2.0), tr("DOSSIERS", "FICHAS"), "", false) {
-            return Some(Action::OpenDossier(0));
         }
         return None;
     };
@@ -591,7 +589,8 @@ pub(crate) fn screen_row(ui: &mut Ui, r: Rect, label: &str, value: &str, chosen:
         fill(r, PAPER);
     }
     let size = if r.h >= 16.0 { BIG } else { SMALL };
-    let base = r.y + r.h - 3.0;
+    // Centred in rows taller than the usual 17 pixels.
+    let base = r.y + r.h - 3.0 - ((r.h - 17.0).max(0.0) / 2.0).floor();
     let x = r.x + 12.0;
     if chosen {
         ui.text(">", r.x + 2.0, base, size, if hover { NAVY } else { LIME }, true);
